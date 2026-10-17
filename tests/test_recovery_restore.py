@@ -18,7 +18,7 @@ from pathlib import Path
 from zipfile import ZipFile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from build import build_zip, SIZES
-from test_dsds_editor import BUSYBOX, TARGET, encode_properties, decode_properties
+from test_dsds_editor import BUSYBOX, TARGET, MODEM_TARGET, DSDS_RECORDS, encode_properties, decode_properties
 
 ROOT = Path(__file__).resolve().parents[1]
 NAMES = ('modemst1', 'modemst2', 'fsg', 'fsc')
@@ -54,6 +54,7 @@ flush_partition() {
     [ "$SCENARIO:${1##*/}" != flush_failure:modemst1 ]
 }
 dsds_property_file() { printf '%s/property/persistent_properties\n' "$MOCK_DATA"; }
+dsds_modem_marker() { printf '%s/vendor/modem_fdr/fdr_check\n' "$MOCK_DATA"; }
 dsds_data_mounted_rw() { [ "$SCENARIO" != data_unavailable ]; }
 dsds_require_data() {
     dsds_data_mounted_rw || die 'Mount/decrypt Data in OrangeFox, then flash again.'
@@ -163,9 +164,13 @@ class RestoreTests(unittest.TestCase):
         self.property_dir = self.data / 'property'
         self.property_dir.mkdir(parents=True, mode=0o700)
         self.settings = self.property_dir / 'persistent_properties'
-        self.initial_settings = encode_properties([('persist.sys.locale', 'en-PK'), (TARGET, ''), ('persist.keep', 'unchanged')])
+        self.initial_settings = encode_properties([('persist.sys.locale', 'en-PK'), (TARGET, 'dsds'),
+                                                   (MODEM_TARGET, 'ss'), ('persist.keep', 'unchanged')])
         self.settings.write_bytes(self.initial_settings)
         self.settings.chmod(0o600)
+        self.modem_marker = self.data / 'vendor/modem_fdr/fdr_check'
+        self.modem_marker.parent.mkdir(parents=True)
+        self.modem_marker.touch(mode=0o600)
         (self.data / 'newer-properties').write_bytes(encode_properties([('persist.keep', 'newer')]))
         self.log = self.work / 'restore.log'
         self.log.touch()
@@ -228,9 +233,10 @@ class RestoreTests(unittest.TestCase):
         self.assertIn('SUCCESS: all four partitions restored and verified.', result.stdout)
         self.assertIn('SUCCESS: DSDS enabled for the next Android boot.', result.stdout)
         self.assertEqual(decode_properties(self.settings.read_bytes()),
-                         [('persist.sys.locale', 'en-PK'), ('persist.keep', 'unchanged'), (TARGET, 'dsds')])
+                         [('persist.sys.locale', 'en-PK'), ('persist.keep', 'unchanged')] + DSDS_RECORDS)
         self.assertEqual((self.work / 'before-restore/persistent_properties').read_bytes(), self.initial_settings)
         self.assertFalse(list(self.property_dir.glob('.hecker-dsds*')))
+        self.assertEqual(self.modem_marker.read_bytes(), b'')
         for name in NAMES:
             self.assertEqual(sha(self.blocks / name), sha(self.backups / name))
         self.assert_snapshots()
@@ -339,6 +345,17 @@ class RestoreTests(unittest.TestCase):
         self.settings.unlink()
         self.assert_rejected('success', 'Cannot read Android settings')
 
+    def test_missing_modem_marker_stops_before_any_efs_write(self):
+        self.modem_marker.unlink()
+        self.assert_rejected('success', 'Modem initialization marker is missing or unsafe')
+        self.assertEqual(self.settings.read_bytes(), self.initial_settings)
+        self.assertFalse(self.modem_marker.exists())
+
+    def test_symlinked_modem_marker_is_not_accepted(self):
+        self.modem_marker.unlink()
+        self.modem_marker.symlink_to(self.settings)
+        self.assert_rejected('success', 'Modem initialization marker is missing or unsafe')
+
     def test_property_service_active_rejects_without_efs_writes(self):
         self.assert_rejected('property_service_active', 'active persistent-property service')
 
@@ -369,6 +386,7 @@ class RestoreTests(unittest.TestCase):
         with ZipFile(archive_path) as archive:
             archive.extractall(self.work)
         self.settings.unlink()
+        self.modem_marker.unlink()
         result = self.run_installer('data_unavailable')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('SUCCESS: all four partitions restored and verified.', result.stdout)

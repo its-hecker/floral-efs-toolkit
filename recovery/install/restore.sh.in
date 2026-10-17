@@ -206,7 +206,8 @@ run_restore() {
     ui_print 'SUCCESS: all four partitions restored and verified.'
     if [ "$RESTORE_DSDS" = 1 ]; then
         ui_print 'SUCCESS: DSDS enabled for the next Android boot.'
-        ui_print 'Android must still activate the saved radio configuration.'
+        ui_print 'Both radio and saved modem configuration set to DSDS.'
+        ui_print 'Single-flash repair requires confirmation in Android.'
     else
         ui_print 'DSDS left unchanged (EFS-only package).'
     fi

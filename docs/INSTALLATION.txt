@@ -2,8 +2,9 @@ FLASH ONLY ON THE ORIGINAL PIXEL 4 XL (CORAL)
 
 1. Complete the ROM installation and all required wipes first.
 2. If this package enables DSDS, Android must have initialized Data after
-   the last Format Data. Boot to the setup screen once if needed, then
-   return to recovery. There is no manual dialer DSDS step.
+   the last Format Data. Boot Android once if needed, let it finish starting,
+   then return to recovery. The installer requires
+   Android's existing modem initialization marker. No dialer step is needed.
 3. Mount/decrypt Data if this package enables DSDS. An EFS-only package
    does not need Android's settings database and leaves DSDS unchanged.
 4. Flash this personal ZIP in OrangeFox/TWRP or use recovery ADB Sideload.
@@ -29,5 +30,6 @@ https://github.com/its-hecker/floral-efs-toolkit
 If the first Android boot shows 00 but a second restore works, see
 DIAGNOSTICS.md and tools/capture_diagnostics.py in this ZIP. Capture the
 failed Android boot before returning to recovery, then recovery evidence
-before restoring again. This diagnostic update preserves the same restore
-behavior and does not claim a single-flash repair.
+before restoring again. v1.5.2 saves both Android's requested DSDS mode and the
+saved modem mode together to address the clear observed in the failed boot.
+This is a targeted test release; single-flash success needs device confirmation.

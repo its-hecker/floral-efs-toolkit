@@ -66,7 +66,7 @@ def build_zip(backup_dir: Path, output: Path, *, enable_dsds: bool = True) -> Pa
     entries.update({f'efs_backup/{name}': data for name, data in backups.items()})
     entries['tools/capture_diagnostics.py'] = (ROOT / 'tools/capture_diagnostics.py').read_bytes()
     entries['DIAGNOSTICS.md'] = (ROOT / 'docs/DIAGNOSTICS.md').read_bytes()
-    note = ('DSDS: saved for the next Android boot. Initialized, readable Data is required.\n'
+    note = ('DSDS: both radio and saved modem mode configured. Initialized Data and modem marker required.\n'
             if enable_dsds else 'DSDS: unchanged. This package restores EFS only.\n')
     entries['README.txt'] = (f'Floral EFS Toolkit v{release} | Hecker (Maintainer)\n'
                            'PERSONAL BACKUP - ORIGINAL PIXEL 4 XL (CORAL) ONLY\n'

@@ -18,13 +18,17 @@ There is no automatic EFS rollback after a partial failure. The installer retain
 
 Coral's init starts `vendor.qcrild2` when `persist.radio.multisim.config=dsds`. A plain recovery `setprop` does not establish that Android's on-disk persistent property file was changed. The optional DSDS path therefore edits the existing `/data/property/persistent_properties` protobuf offline.
 
-The schema is a repeated property record, with field 1 for the name and field 2 for its value. The AWK editor consumes numeric bytes from `od`, validates the complete input before emitting output, preserves unrelated records and unknown fields byte-for-byte, then writes one unambiguous DSDS record. It removes only pending `next_boot.persist.radio.multisim.config` overrides of that same setting. Unsupported or malformed input is rejected without replacing the original.
+The schema is a repeated property record, with field 1 for the name and field 2 for its value. The AWK editor consumes numeric bytes from `od`, validates the complete input before emitting output, preserves unrelated records and unknown fields byte-for-byte, then writes one unambiguous record each for `persist.radio.multisim.config=dsds` and `persist.vendor.mdm.multisim.cfg=dsds`. It removes duplicate records and pending `next_boot.` overrides only for those two settings. Unsupported or malformed input is rejected without replacing the original.
 
 The original Android settings directory and database must exist, be readable and have expected file metadata. The installer does not create a plaintext substitute before Android has established its encryption policy. Property files are limited to 256 KiB; unsupported encodings or larger stores stop the install.
 
 The modified database is staged in the existing property directory to inherit its encryption policy. File ownership is root:root, mode 0600, one hard link, with `u:object_r:property_data_file:s0`. DSDS is committed by atomic rename only after all EFS restores verify. A changed original database is not overwritten. A failed post-commit check triggers an attempt to restore the original settings.
 
-The installer saves the configuration for the next Android boot. It cannot verify live modem behavior in recovery. Android's framework and radio firmware may have other configuration requirements; the owner has confirmed v1.5 DSDS activation, but the first boot still needed a second EFS restore. An EFS-only package skips this entire Data/DSDS path.
+The failed-boot evidence shows `rmt_storage` comparing Android's requested DSDS mode against a saved modem mode of `ss`, then clearing both modem stores. The modem saves `persist.vendor.mdm.multisim.cfg=dsds` later in that boot. Static inspection of the vendor `rmt_storage` artifact confirms that it compares these two properties and skips its mode-switch clear when they match. The second property is saved state used by that check; writing it does not itself prove the live modem changed mode.
+
+The same artifact has a separate factory-reset check for `/data/vendor/modem_fdr/fdr_check`. A missing marker sets the clear flag even when the two modes agree. A DSDS package therefore requires this existing regular file, with no symlinks in its path, before EFS writes. It never creates, removes or edits the marker. Android must initialize it normally. An EFS-only package skips the entire Data/DSDS path, including this check, and retains the previous restore behavior.
+
+The installer saves both settings in one atomic property-file replacement for the next boot. Live modem behavior cannot be verified in recovery. v1.5.2 targets the clear observed in the provided capture; successful single-flash restoration still requires a handset test. It does not establish persistence through a subsequent factory reset.
 
 ## Validation scope
 
@@ -39,6 +43,7 @@ The previous personal v1.4 EFS restore was reported working by its owner. That c
 - [Android init persistent-property implementation](https://android.googlesource.com/platform/system/core/+/refs/heads/main/init/persistent_properties.cpp)
 - [Property-file SELinux context](https://android.googlesource.com/platform/system/sepolicy/+/refs/heads/android13-release/private/file_contexts)
 - [Android Data directory initialization](https://android.googlesource.com/platform/system/core/+/refs/heads/android13-release/rootdir/init.rc)
+- [Inspected vendor rmt_storage artifact](https://github.com/its-hecker/infinityx_cnb_vendor_google_flame/blob/lineage-24.0/proprietary/vendor/bin/rmt_storage) (Git blob `3bee21c7f3099102f92682b9820176b67cd79a25`; static inspection only, no binary modification or redistribution in this toolkit)
 
 ## Failed-boot evidence
 

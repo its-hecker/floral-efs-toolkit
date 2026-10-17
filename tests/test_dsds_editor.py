@@ -25,6 +25,8 @@ POOL = descriptor_pool.DescriptorPool()
 POOL.Add(DESCRIPTOR)
 PersistentProperties = message_factory.GetMessageClass(POOL.FindMessageTypeByName('PersistentProperties'))
 TARGET = 'persist.radio.multisim.config'
+MODEM_TARGET = 'persist.vendor.mdm.multisim.cfg'
+DSDS_RECORDS = [(TARGET, 'dsds'), (MODEM_TARGET, 'dsds')]
 BUSYBOX = Path(os.environ.get('EFS_TEST_BUSYBOX') or shutil.which('busybox') or ROOT / '.test-tools/busybox')
 if os.environ.get('EFS_REQUIRE_BUSYBOX') == '1' and not BUSYBOX.is_file():
     raise RuntimeError('BusyBox is required by this test run')
@@ -60,7 +62,7 @@ class EditorTests(unittest.TestCase):
         result = self.edit(original)
         self.assertEqual(result.returncode, 0, result.stderr)
         records = decode_properties(result.stdout)
-        self.assertEqual(records, preserved + [(TARGET, 'dsds')])
+        self.assertEqual(records, preserved + DSDS_RECORDS)
         self.assertEqual(self.edit(result.stdout, 'check').returncode, 0)
         return result.stdout
 
@@ -70,6 +72,18 @@ class EditorTests(unittest.TestCase):
     def test_replaces_single_sim_value(self):
         self.assert_enabled(encode_properties([(TARGET, 'ssss')]), [])
 
+    def test_observed_radio_dsds_modem_ss_mismatch_is_corrected(self):
+        # The failed boot's rmt_storage log reports radio:dsds, modem:ss,
+        # then clears both modem stores. Check both saved settings through
+        # Google's independent protobuf parser, not the editor's check mode.
+        output = self.assert_enabled(encode_properties([(TARGET, 'dsds'), (MODEM_TARGET, 'ss')]), [])
+        properties = dict(decode_properties(output))
+        self.assertEqual(properties[TARGET], properties[MODEM_TARGET])
+        self.assertEqual(properties[MODEM_TARGET], 'dsds')
+
+    def test_missing_modem_setting_is_added_to_legacy_radio_only_file(self):
+        self.assert_enabled(encode_properties([(TARGET, 'dsds')]), [])
+
     def test_preserves_unrelated_settings(self):
         records = [('persist.sys.locale', 'en-PK'), ('persist.vendor.demo', 'on')]
         self.assert_enabled(encode_properties(records), records)
@@ -77,7 +91,9 @@ class EditorTests(unittest.TestCase):
     def test_deduplicates_dsds_and_discards_pending_single_sim_override(self):
         preserved = [('persist.keep', 'yes'), ('next_boot.persist.keep', 'later')]
         original = encode_properties([(TARGET, ''), preserved[0], (TARGET, 'ssss'),
-                                      ('next_boot.' + TARGET, ''), preserved[1]])
+                                      ('next_boot.' + TARGET, ''), preserved[1],
+                                      (MODEM_TARGET, 'ss'), (MODEM_TARGET, 'dsds'),
+                                      ('next_boot.' + MODEM_TARGET, 'ss')])
         self.assert_enabled(original, preserved)
 
     def test_unicode_and_nul_values_are_preserved(self):
@@ -113,8 +129,13 @@ class EditorTests(unittest.TestCase):
         self.assertEqual(self.edit(first).stdout, first)
 
     def test_check_rejects_missing_duplicate_and_wrong_dsds(self):
-        for records in [[], [(TARGET, '')], [(TARGET, 'dsds'), (TARGET, 'dsds')],
-                        [(TARGET, 'dsds'), ('next_boot.' + TARGET, '')]]:
+        for records in [[], [(TARGET, 'dsds')], [(MODEM_TARGET, 'dsds')],
+                        [(TARGET, ''), (MODEM_TARGET, 'dsds')],
+                        [(TARGET, 'dsds'), (MODEM_TARGET, 'ss')],
+                        DSDS_RECORDS + [(TARGET, 'dsds')],
+                        DSDS_RECORDS + [(MODEM_TARGET, 'dsds')],
+                        DSDS_RECORDS + [('next_boot.' + TARGET, '')],
+                        DSDS_RECORDS + [('next_boot.' + MODEM_TARGET, 'ss')]]:
             with self.subTest(records=records):
                 self.assertNotEqual(self.edit(encode_properties(records), 'check').returncode, 0)
 
@@ -144,12 +165,14 @@ class EditorTests(unittest.TestCase):
             records = [(f'persist.test_{i}', ''.join(chr(random_source.randrange(32, 127)) for _ in range(random_source.randrange(0, 300))))
                        for i in range(random_source.randrange(1, 20))]
             records.insert(random_source.randrange(len(records)), (TARGET, 'ssss'))
+            records.insert(random_source.randrange(len(records)), (MODEM_TARGET, 'ss'))
             original = encode_properties(records)
             host, busybox = self.edit(original, use_busybox=False), self.edit(original)
             self.assertEqual(host.returncode, 0, host.stderr)
             self.assertEqual(busybox.returncode, 0, busybox.stderr)
             self.assertEqual(host.stdout, busybox.stdout)
-            self.assertEqual(decode_properties(host.stdout), [r for r in records if r[0] != TARGET] + [(TARGET, 'dsds')])
+            self.assertEqual(decode_properties(host.stdout),
+                             [r for r in records if r[0] not in (TARGET, MODEM_TARGET)] + DSDS_RECORDS)
 
     def test_truncated_real_messages_do_not_silently_drop_settings(self):
         original = encode_properties([('persist.one', 'a' * 15), ('persist.two', 'b' * 15)])

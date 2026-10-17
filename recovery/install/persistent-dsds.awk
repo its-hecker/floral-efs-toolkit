@@ -1,6 +1,6 @@
 # Binary-safe editor for Android init's PersistentProperties protobuf.
-# Input: od -An -v -tu1 FILE. Only the DSDS record and its pending override
-# are changed. Unrelated records and unknown fields are copied byte-for-byte.
+# Input: od -An -v -tu1 FILE. Only the radio/modem DSDS records and their
+# pending overrides change. Other records/unknown fields keep their bytes.
 # Run with LC_ALL=C, -v expected_size=N, and -v mode=set or mode=check.
 
 function fail(message) {
@@ -54,7 +54,7 @@ function text_at(start, length_,    result, index_) {
     return result
 }
 
-function record(limit,    tag, number, wire, length_, name, value, name_index) {
+function record(limit,    tag, number, wire, length_, name, value, name_index, target_index) {
     name = ""
     value = ""
     while (pos <= limit) {
@@ -83,14 +83,16 @@ function record(limit,    tag, number, wire, length_, name, value, name_index) {
     if (name !~ /^(persist\.|next_boot\.)[A-Za-z0-9_.:@-]+$/) {
         fail("invalid persistent-property name")
     }
-    if (name == target) {
-        target_count++
-        if (value == "dsds") dsds_count++
-        return 1
-    }
-    if (name == "next_boot." target) {
-        pending_count++
-        return 1
+    for (target_index = 1; target_index <= target_total; target_index++) {
+        if (name == targets[target_index]) {
+            target_count[target_index]++
+            if (value == "dsds") dsds_count[target_index]++
+            return 1
+        }
+        if (name == "next_boot." targets[target_index]) {
+            pending_count[target_index]++
+            return 1
+        }
     }
     return 0
 }
@@ -104,7 +106,9 @@ function emit_varint(value) {
 }
 
 BEGIN {
-    target = "persist.radio.multisim.config"
+    targets[1] = "persist.radio.multisim.config"
+    targets[2] = "persist.vendor.mdm.multisim.cfg"
+    target_total = 2
     max_size = 262144
     if (mode != "set" && mode != "check") fail("invalid editor mode")
     if (expected_size !~ /^[0-9]+$/ || expected_size > max_size) fail("invalid file size")
@@ -138,8 +142,10 @@ END {
         }
     }
     if (mode == "check") {
-        if (target_count != 1 || dsds_count != 1 || pending_count != 0) {
-            fail("DSDS setting is not unambiguous")
+        for (target_index = 1; target_index <= target_total; target_index++) {
+            if (target_count[target_index] != 1 || dsds_count[target_index] != 1 || pending_count[target_index] != 0) {
+                fail("DSDS setting is not unambiguous: " targets[target_index])
+            }
         }
         exit 0
     }
@@ -148,10 +154,13 @@ END {
         if (index_ in removed) index_ = removed[index_]
         else printf "%c", bytes[index_]
     }
-    printf "%c", 10
-    emit_varint(2 + length(target) + 2 + 4)
-    printf "%c", 10
-    emit_varint(length(target))
-    printf "%s", target
-    printf "%c%c%s", 18, 4, "dsds"
+    for (target_index = 1; target_index <= target_total; target_index++) {
+        target = targets[target_index]
+        printf "%c", 10
+        emit_varint(2 + length(target) + 2 + 4)
+        printf "%c", 10
+        emit_varint(length(target))
+        printf "%s", target
+        printf "%c%c%s", 18, 4, "dsds"
+    }
 }

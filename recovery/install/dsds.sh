@@ -5,6 +5,10 @@ dsds_property_file() {
     printf '%s\n' /data/property/persistent_properties
 }
 
+dsds_modem_marker() {
+    printf '%s\n' /data/vendor/modem_fdr/fdr_check
+}
+
 dsds_data_mounted_rw() {
     while read -r DATA_SOURCE DATA_DEST DATA_FS DATA_OPTIONS DATA_REST; do
         [ "$DATA_DEST" = /data ] || continue
@@ -55,6 +59,12 @@ dsds_prepare() {
         true|1) die 'Recovery has an active persistent-property service; offline DSDS editing is unsafe.';;
     esac
     dsds_require_data
+    # rmt_storage also clears modem storage if this Android-created marker
+    # is absent. Require existing initialization; never create/bypass it.
+    DSDS_MODEM_MARKER=$(dsds_modem_marker)
+    [ -f "$DSDS_MODEM_MARKER" ] && [ ! -L "$DSDS_MODEM_MARKER" ] &&
+        [ "$(readlink -f "$DSDS_MODEM_MARKER")" = "$DSDS_MODEM_MARKER" ] ||
+        die 'Modem initialization marker is missing or unsafe. Boot Android once, return to recovery, then flash. No EFS writes started.'
     DSDS_FILE=$(dsds_property_file)
     DSDS_DIR=${DSDS_FILE%/*}
     [ -d "$DSDS_DIR" ] && [ ! -L "$DSDS_DIR" ] &&
@@ -84,7 +94,7 @@ dsds_prepare() {
     dsds_label_file "$DSDS_STAGE" || die 'Cannot set safe DSDS file permissions and SELinux label.'
     [ "$(file_sha256 "$DSDS_STAGE")" = "$DSDS_NEW_HASH" ] || die 'Staged DSDS settings failed readback.'
     sync || die 'Cannot sync staged DSDS settings.'
-    ui_print 'DSDS setting prepared; other Android settings preserved.'
+    ui_print 'Radio and modem DSDS settings prepared together; other settings preserved.'
 }
 
 dsds_rollback() {
@@ -111,6 +121,6 @@ dsds_commit() {
         die 'EFS restored, but DSDS verification failed. Keep recovery open and save the log.'
     fi
     DSDS_VERIFIED=1
-    ui_print 'DSDS saved and verified for the next Android boot.'
+    ui_print 'DSDS saved and verified for both radio and modem configuration.'
     dsds_cleanup
 }

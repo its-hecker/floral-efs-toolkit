@@ -2,15 +2,37 @@
 
 The owner confirmed that v1.5 enables DSDS on coral, but observed this sequence: flash, boot Android with both IMEIs showing `00`, return to recovery, restore again, then both IMEIs work. An Android boot separated the two flashes. The previous EFS-only version was also reported to require two passes.
 
-This supports investigating boot-time modem initialization. It does **not** prove that DSDS erased EFS or identify a particular reset flag. The installer already flushes and verifies the four backup images in recovery before reporting success. A valid recovery readback does not establish what the modem accepts or changes afterward.
+## What the captured failed boot establishes
 
-**v1.5.1 adds evidence collection, not a verified single-flash repair.** It preserves the restore behavior and adds a before/after partition report in recovery RAM. No additional NV writes, reset-flag changes or Android boot scripts are introduced.
+The Android capture contains a specific sequence:
+
+1. `rmt_storage` reports `radio: dsds, modem:ss` and detects an SS-to-DSDS configuration change.
+2. Its next reads report clearing both `/boot/modem_fs1` and `/boot/modem_fs2` due to FDR. Full writes to both stores follow.
+3. The modem crashes with `RX_INIT FAILED due to NULL RF Cal`.
+4. Later in the same boot, `modem_svc` saves `persist.vendor.mdm.multisim.cfg=dsds`.
+
+The recovery capture before the second restore shows both `modemst` hashes differ from the private backup, while `fsg` and `fsc` match. The existing modem initialization marker predates the captured boot. These are stronger findings than a hash change alone: the boot log explicitly records the clear and the configuration mismatch. The later saved DSDS mode explains the reported benefit of a second restore after that Android boot.
+
+The first restore's recovery log is not in these two captures: recovery RAM was lost on reboot. The captures establish the boot-time clear, not the precise before/after bytes of the first flash. Personal logs and partition hashes remain private.
+
+## v1.5.2 targeted test release
+
+The recovery installer now saves both persistent mode properties as `dsds` in one atomic property-file replacement:
+
+- `persist.radio.multisim.config`
+- `persist.vendor.mdm.multisim.cfg`
+
+Static inspection of the vendor `rmt_storage` artifact confirms that its mode-switch clear is skipped when these values agree. It also confirms a separate clear path when `/data/vendor/modem_fdr/fdr_check` is absent. The DSDS installer requires this existing Android-created marker before writing EFS; it never creates, deletes or edits the marker.
+
+**The cause of this captured clear is identified; single-flash success with the new settings still needs device confirmation.** No firmware patches, identifier changes, reset-marker writes or Android boot scripts are introduced. The EFS backup payloads remain byte-for-byte unchanged. An EFS-only package leaves the prior behavior intact.
+
+On the next planned install, finish the ROM's wipes, let Android initialize Data and the modem once, then flash the v1.5.2 personal ZIP in recovery. The dialer toggle is unnecessary. Check both IMEIs and cellular service on the following Android boot. No reset is needed on a currently working phone solely to test this release.
 
 ## Capture a failed first boot
 
 Use these steps if the symptom occurs during your next planned install. There is no need to reset a currently working phone just to collect evidence. USB debugging must already be enabled and the computer authorized in Android.
 
-The read-only collector is in `tools/capture_diagnostics.py` in both the source download and a newly built personal ZIP. Extract it on the computer and run from that extracted folder. It uses Python 3.10+ and `adb` on PATH; no Python packages or Android root are required for the Android log capture.
+The read-only collector is in `tools/capture_diagnostics.py` in both the source download and a newly built personal ZIP. Extract it on the computer and run from that extracted folder. It uses Python 3.10+ and `adb` on PATH; no Python packages or Android root are required for the Android log capture. v1.5.2 adds the saved modem-mode property to the capture.
 
 While Android still shows `00`, **before rebooting back to recovery**, run in Windows CMD:
 
@@ -48,4 +70,4 @@ If convenient, run the recovery collector immediately after the first flash and 
 - Different hashes show that bytes changed. **That alone does not prove corruption or erasure**: normal modem operation also writes its storage. Correlate the differences with radio errors and reset/initialization messages.
 - Flag-file presence or timestamps are evidence to compare, not instructions to create, delete or bypass those flags.
 
-Changing the order of two offline writes cannot establish what the following Android boot will do. A genuine single-flash fix needs a confirmed cause from these captures. The currently reported working fallback remains flash, boot Android, return to recovery, restore again.
+If the symptom recurs with v1.5.2, inspect both mode properties, the explicit `rmt_storage` clear messages, the reset marker and the modem crash reason together. The reported working fallback remains flash, boot Android, return to recovery, restore again. Device testing is required before describing the new release as a verified single-flash fix.

@@ -20,6 +20,7 @@ PROPERTIES = (
     'ro.build.fingerprint', 'ro.vendor.build.fingerprint', 'ro.bootloader',
     'ro.boot.slot_suffix', 'ro.bootmode', 'ro.boot.mode', 'gsm.version.baseband',
     'persist.radio.multisim.config', 'persist.vendor.radio.multisim_switch_support',
+    'persist.vendor.mdm.multisim.cfg',
     'sys.boot_completed', 'init.svc.rmt_storage', 'init.svc.modem_svc',
     'init.svc.vendor.qcrild', 'init.svc.vendor.qcrild2',
     'ro.twrp.version', 'ro.orangefox.version', 'ro.fox.version',
