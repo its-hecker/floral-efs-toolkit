@@ -1,14 +1,15 @@
-Public source release for **Pixel 4 XL (coral)**, maintained by **Hecker**.
+Diagnostic update for **Pixel 4 XL (coral)**, maintained by **Hecker**.
 
-- Build a personal OrangeFox/TWRP recovery ZIP locally from your own four modem backups.
-- Restore `modemst1`, `modemst2`, `fsg` and `fsc` with model, size, checksum, write-protection and full readback checks.
-- Save temporary pre-restore copies in recovery RAM.
-- Optionally save DSDS for the next Android boot without a manual dialer toggle. This requires initialized, readable Data; a fresh Format Data may still need one Android boot before flashing.
-- Build an EFS-only package with `--no-dsds` when you want to leave DSDS unchanged.
-- No Magisk/KernelSU dependency, installed boot script or automatic reboot.
+The owner confirmed DSDS activation from the recovery ZIP. However, the first Android boot still showed both IMEIs as `00`; returning to recovery and flashing the same ZIP again restored both. An Android boot separated the two flashes. The cause remains unconfirmed.
 
-**The source download is not recovery-flashable.** Extract it and run `build.py` with backups from your original coral handset, then flash the generated personal ZIP. No personal EFS images are included in this repository or release. Do not publish your generated restore ZIP.
+- Add `partition-state.tsv` with expected, pre-restore and verified post-restore digests in recovery RAM.
+- Add a read-only ADB collector for first-boot radio logs and recovery partition digests/metadata, with Windows CMD instructions.
+- Optionally compare recovery digests against a personal restore ZIP on the computer, without exporting raw EFS images.
+- Include the collector and diagnostic guide in locally generated personal ZIPs.
+- Keep the existing restore writes and DSDS configuration behavior. No guessed modem/NV writes, reset-flag modifications or Android boot scripts are added.
 
-The original personal v1.4 EFS restore was reported working. The v1.5 DSDS addition has local automated coverage but still needs handset activation testing, so this source release is marked **prerelease**. Pixel 4 / flame is not supported by this release. This does not make the repair survive factory reset or establish bootloader-relocking support.
+**This release does not claim to fix the two-flash requirement.** Failed-boot evidence is needed to distinguish normal modem writes, rejected provisioning and radio/configuration changes. Different partition hashes alone do not prove corruption.
 
-See the README for Windows CMD build commands, installation steps and troubleshooting.
+The source download is not recovery-flashable. Build your private ZIP from your original handset's own four backups. Source releases and CI artifacts contain no personal modem data. Logs may contain identifiers: send captures privately, not in public GitHub issues.
+
+Pixel 4 / flame is not supported. This remains a prerelease and does not establish factory-reset permanence or bootloader-relocking support.

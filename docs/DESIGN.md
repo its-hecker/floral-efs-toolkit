@@ -24,7 +24,7 @@ The original Android settings directory and database must exist, be readable and
 
 The modified database is staged in the existing property directory to inherit its encryption policy. File ownership is root:root, mode 0600, one hard link, with `u:object_r:property_data_file:s0`. DSDS is committed by atomic rename only after all EFS restores verify. A changed original database is not overwritten. A failed post-commit check triggers an attempt to restore the original settings.
 
-The installer saves the configuration for the next Android boot. It cannot verify live modem behavior in recovery. Android's framework and radio firmware may have other configuration requirements; handset testing is still needed for v1.5 DSDS activation. An EFS-only package skips this entire Data/DSDS path.
+The installer saves the configuration for the next Android boot. It cannot verify live modem behavior in recovery. Android's framework and radio firmware may have other configuration requirements; the owner has confirmed v1.5 DSDS activation, but the first boot still needed a second EFS restore. An EFS-only package skips this entire Data/DSDS path.
 
 ## Validation scope
 
@@ -39,3 +39,7 @@ The previous personal v1.4 EFS restore was reported working by its owner. That c
 - [Android init persistent-property implementation](https://android.googlesource.com/platform/system/core/+/refs/heads/main/init/persistent_properties.cpp)
 - [Property-file SELinux context](https://android.googlesource.com/platform/system/sepolicy/+/refs/heads/android13-release/private/file_contexts)
 - [Android Data directory initialization](https://android.googlesource.com/platform/system/core/+/refs/heads/android13-release/rootdir/init.rc)
+
+## Failed-boot evidence
+
+v1.5.1 records a pipe-delimited `partition-state.tsv` beside the recovery log, with expected, pre-restore and verified post-restore hashes for each partition. The host-side collector reads Android logs and recovery digests/metadata; it never modifies the phone or collects raw EFS images. An optional comparison reads a personal restore ZIP on the computer and compares its image digests with the recovery readout. Different hashes alone do not prove corruption because normal modem operation writes persistent storage. See [diagnostics](DIAGNOSTICS.md).

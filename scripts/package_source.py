@@ -18,6 +18,7 @@ PUBLIC_FILES = (
     'build.py',
     'requirements-test.txt',
     'docs/DESIGN.md',
+    'docs/DIAGNOSTICS.md',
     'docs/INSTALLATION.txt',
     'docs/RELEASE_NOTES.md',
     'recovery/META-INF/com/google/android/update-binary',
@@ -27,8 +28,10 @@ PUBLIC_FILES = (
     'recovery/install/restore.sh.in',
     'scripts/package_source.py',
     'tests/test_builder.py',
+    'tests/test_diagnostics.py',
     'tests/test_dsds_editor.py',
     'tests/test_recovery_restore.py',
+    'tools/capture_diagnostics.py',
 )
 
 

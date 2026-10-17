@@ -15,7 +15,7 @@ Build an OrangeFox/TWRP ZIP from your own `modemst1`, `modemst2`, `fsg` and `fsc
 | Pixel 4 XL / `coral` | Supported target; device and partition sizes checked at flash time |
 | Pixel 4 / `flame` | Not supported by this release |
 | EFS restore | The maintainer's original v1.4 package was reported working on the original coral handset |
-| Automatic DSDS setting | v1.5 addition; locally tested, handset activation still awaiting confirmation |
+| Automatic DSDS setting | Owner confirmed activation on coral; first boot still showed `00` until a second restore |
 | Magisk / KernelSU | Not required by the recovery ZIP |
 | Factory-reset permanence | Not provided; a later wipe may require restore again |
 
@@ -46,7 +46,7 @@ On Linux or macOS:
 python3 build.py --backup-dir "$HOME/coral-backups"
 ```
 
-The builder writes `dist/Floral-EFS-Restore-coral-v1.5.0-DSDS-PERSONAL.zip`. It copies backups unchanged, embeds their checksums, verifies the completed archive and refuses to overwrite an existing output.
+The builder writes `dist/Floral-EFS-Restore-coral-v1.5.1-DSDS-PERSONAL.zip`. It copies backups unchanged, embeds their checksums, verifies the completed archive and refuses to overwrite an existing output.
 
 For an EFS-only package that leaves DSDS unchanged and does not require readable Data:
 
@@ -67,6 +67,10 @@ Use `--output "path\new-name.zip"` when you want a different output filename. **
 Complete all wipes before restoring. If Data was freshly formatted and the settings database is absent or unreadable, the DSDS installer stops **before any EFS write**. Initialize Android or unlock Data as appropriate, then retry. An EFS-only package does not change DSDS.
 
 The four target partitions are shared between slots. This ZIP does not change the active slot or flash boot, recovery, system, vendor, persist or bootloader images. It does not establish that a ROM supports bootloader relocking.
+
+## First boot shows `00`, second restore works
+
+This sequence has been reported on the maintainer's coral. v1.5.1 adds a before/after partition report and a read-only Windows/Linux diagnostic collector. **It does not claim to fix the two-flash requirement.** See [failed-boot capture instructions](docs/DIAGNOSTICS.md). Capture Android radio logs while the first boot still shows `00`, then partition digests in recovery before the second restore. No further reset is needed on a currently working phone.
 
 ## Checks and failure handling
 

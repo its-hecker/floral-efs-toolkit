@@ -2,6 +2,8 @@
 /backups/
 /dist/
 /public-dist/
+/efs-diagnostics*/
+/efs-diagnostics*.zip
 efs_backup/
 modemst1
 modemst2

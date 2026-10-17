@@ -178,6 +178,8 @@ run_restore() {
         printf '%s  %s\n' "$SNAPSHOT_HASH" "$PART" >> "$WORKDIR/before-restore/SHA256SUMS" || die 'Cannot save snapshot checksum.'
     done < "$TARGETS"
     ui_print 'Pre-restore copies captured in recovery RAM.'
+    REPORT="$WORKDIR/partition-state.tsv"
+    printf 'partition|expected_sha256|before_sha256|after_sha256\n' > "$REPORT" || die 'Cannot create partition-state report.'
     # Prepare and check DSDS before the first EFS write. Commit only after
     # every restored partition has passed readback verification.
     if [ "$RESTORE_DSDS" = 1 ]; then dsds_prepare; fi
@@ -191,6 +193,8 @@ run_restore() {
         flush_partition "$TARGET" || die "Flush failed: $PART"
         READBACK_HASH=$(file_sha256 "$TARGET") || die "Cannot verify restored partition: $PART"
         [ "$READBACK_HASH" = "$EXPECTED_HASH" ] || die "Readback verification failed: $PART"
+        BEFORE_HASH=$(file_sha256 "$WORKDIR/before-restore/$PART") || die "Cannot read diagnostic snapshot hash: $PART"
+        printf '%s|%s|%s|%s\n' "$PART" "$EXPECTED_HASH" "$BEFORE_HASH" "$READBACK_HASH" >> "$REPORT" || die 'Cannot save partition-state report.'
         RESTORED=$((RESTORED + 1))
         ui_print "Restored and verified: $PART"
         case "$RESTORED" in 1) set_progress 0.55;; 2) set_progress 0.70;; 3) set_progress 0.80;; 4) set_progress 0.90;; esac
@@ -202,6 +206,7 @@ run_restore() {
     ui_print 'SUCCESS: all four partitions restored and verified.'
     if [ "$RESTORE_DSDS" = 1 ]; then
         ui_print 'SUCCESS: DSDS enabled for the next Android boot.'
+        ui_print 'Android must still activate the saved radio configuration.'
     else
         ui_print 'DSDS left unchanged (EFS-only package).'
     fi
@@ -209,5 +214,7 @@ run_restore() {
     ui_print "Pre-restore copies: $WORKDIR/before-restore"
     ui_print 'Those temporary copies disappear on recovery reboot.'
     ui_print "Log: $LOG"
+    ui_print "Partition-state report: $REPORT"
+    ui_print 'If the first Android boot shows 00, capture diagnostics before restoring again.'
     return 0
 }

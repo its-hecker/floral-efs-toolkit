@@ -235,6 +235,13 @@ class RestoreTests(unittest.TestCase):
             self.assertEqual(sha(self.blocks / name), sha(self.backups / name))
         self.assert_snapshots()
         self.assertEqual(len((self.work / 'write-attempts.txt').read_text().splitlines()), 4)
+        report = (self.work / 'partition-state.tsv').read_text().splitlines()
+        self.assertEqual(len(report), 5)
+        for row in report[1:]:
+            name, expected, before, after = row.split('|')
+            self.assertEqual(before, self.before[name])
+            self.assertEqual(expected, sha(self.backups / name))
+            self.assertEqual(after, expected)
 
     def test_flame_rejected(self):
         self.assert_rejected('flame', 'This backup is for coral')

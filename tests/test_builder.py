@@ -35,6 +35,8 @@ class BuilderTests(unittest.TestCase):
             script = archive.read('install/restore.sh').decode()
             self.assertNotIn('@SHA256_', script)
             self.assertIn('RESTORE_DSDS=1', script)
+            self.assertIn('tools/capture_diagnostics.py', archive.namelist())
+            self.assertIn('DIAGNOSTICS.md', archive.namelist())
             for record in archive.read('SHA256SUMS').decode().splitlines():
                 digest, name = record.split('  ', 1)
                 self.assertEqual(hashlib.sha256(archive.read(name)).hexdigest(), digest)

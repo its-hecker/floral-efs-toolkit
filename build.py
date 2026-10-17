@@ -64,6 +64,8 @@ def build_zip(backup_dir: Path, output: Path, *, enable_dsds: bool = True) -> Pa
             raise ValueError(f'Unresolved installer template token: {name}')
         entries[name.removesuffix('.in')] = text.encode('utf-8')
     entries.update({f'efs_backup/{name}': data for name, data in backups.items()})
+    entries['tools/capture_diagnostics.py'] = (ROOT / 'tools/capture_diagnostics.py').read_bytes()
+    entries['DIAGNOSTICS.md'] = (ROOT / 'docs/DIAGNOSTICS.md').read_bytes()
     note = ('DSDS: saved for the next Android boot. Initialized, readable Data is required.\n'
             if enable_dsds else 'DSDS: unchanged. This package restores EFS only.\n')
     entries['README.txt'] = (f'Floral EFS Toolkit v{release} | Hecker (Maintainer)\n'

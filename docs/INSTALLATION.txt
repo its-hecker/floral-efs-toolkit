@@ -25,3 +25,9 @@ permanent provisioning change. It does not enable bootloader relocking.
 Never publish this personal ZIP or the raw modem backups it contains.
 Source, documentation and updates:
 https://github.com/its-hecker/floral-efs-toolkit
+
+If the first Android boot shows 00 but a second restore works, see
+DIAGNOSTICS.md and tools/capture_diagnostics.py in this ZIP. Capture the
+failed Android boot before returning to recovery, then recovery evidence
+before restoring again. This diagnostic update preserves the same restore
+behavior and does not claim a single-flash repair.
