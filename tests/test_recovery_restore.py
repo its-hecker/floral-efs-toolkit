@@ -440,6 +440,10 @@ class RestoreTests(unittest.TestCase):
         getprop = bin_dir / 'getprop'
         getprop.write_text('#!/bin/sh\n[ "$1" != sys.boot_completed ] || echo 1\nexit 0\n')
         getprop.chmod(0o755)
+        # Recovery identity is simulated even when the CI host is unprivileged.
+        identity = bin_dir / 'id'
+        identity.write_text('#!/bin/sh\nprintf "0\\n"\n')
+        identity.chmod(0o755)
         entry = self.work / 'META-INF/com/google/android/update-binary'
         env = os.environ.copy()
         env['PATH'] = str(bin_dir) + ':' + env['PATH']
