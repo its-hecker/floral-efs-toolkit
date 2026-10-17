@@ -1,0 +1,32 @@
+#!/sbin/sh
+# OrangeFox/TWRP legacy ZIP entry point. No Magisk/KSU runtime is used.
+umask 077
+export PATH="/sbin:/system/bin:/system/xbin:/vendor/bin:$PATH"
+
+OUTFD="$2"
+ZIPFILE="$3"
+case "$OUTFD" in ''|*[!0-9]*) echo 'Invalid recovery output descriptor' >&2; exit 1;; esac
+
+bootstrap_error() {
+    printf 'ui_print ERROR: %s\nui_print\n' "$1" >&"$OUTFD"
+    exit 1
+}
+
+[ -r "$ZIPFILE" ] || bootstrap_error 'Cannot read the installation ZIP.'
+command -v unzip >/dev/null 2>&1 || bootstrap_error 'Recovery is missing unzip.'
+command -v mktemp >/dev/null 2>&1 || bootstrap_error 'Recovery is missing mktemp.'
+
+WORKDIR=$(mktemp -d /tmp/hecker-efs-coral.XXXXXX) || bootstrap_error 'Cannot create temporary directory.'
+LOG="$WORKDIR/restore.log"
+: > "$LOG" || bootstrap_error 'Cannot create restore log.'
+export WORKDIR LOG OUTFD
+
+printf 'ui_print Extracting coral EFS restore package...\nui_print\n' >&"$OUTFD"
+# Extract only the named payloads; no arbitrary archive paths are executed.
+unzip -o "$ZIPFILE" install/restore.sh install/dsds.sh install/persistent-dsds.awk efs_backup/modemst1 efs_backup/modemst2 efs_backup/fsg efs_backup/fsc -d "$WORKDIR" >> "$LOG" 2>&1 || bootstrap_error "Cannot extract complete payload. Log: $LOG"
+[ -r "$WORKDIR/install/restore.sh" ] || bootstrap_error 'Installer script is missing.'
+[ -r "$WORKDIR/install/dsds.sh" ] && [ -r "$WORKDIR/install/persistent-dsds.awk" ] || bootstrap_error 'DSDS installer is missing.'
+. "$WORKDIR/install/dsds.sh"
+. "$WORKDIR/install/restore.sh"
+run_restore "$WORKDIR"
+exit $?

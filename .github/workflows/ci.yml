@@ -1,0 +1,84 @@
+name: Verify toolkit and publish source releases
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish the version in VERSION after checks pass
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y busybox-static
+          python -m pip install -r requirements-test.txt
+      - name: Check shell syntax
+        run: |
+          sh -n recovery/META-INF/com/google/android/update-binary
+          sh -n recovery/install/restore.sh.in
+          sh -n recovery/install/dsds.sh
+      - name: Test with synthetic modem data and BusyBox
+        env:
+          EFS_REQUIRE_BUSYBOX: '1'
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Package public source only
+        run: python scripts/package_source.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: floral-efs-toolkit-source
+          path: |
+            public-dist/*-source.zip
+            public-dist/*-source.zip.sha256
+          if-no-files-found: error
+
+  release:
+    needs: verify
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish_release))
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Package public source only
+        run: python scripts/package_source.py
+      - name: Publish source prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          VERSION="$(cat VERSION)"
+          TAG="v${VERSION}"
+          ASSET="public-dist/Floral-EFS-Toolkit-v${VERSION}-source.zip"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to replace it." >&2
+            exit 1
+          fi
+          gh release create "$TAG" "$ASSET" "$ASSET.sha256" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Floral EFS Toolkit ${TAG}" --prerelease \
+            --notes-file docs/RELEASE_NOTES.md

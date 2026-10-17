@@ -1,0 +1,22 @@
+# Personal modem data and generated recovery packages must stay local.
+/backups/
+/dist/
+/public-dist/
+efs_backup/
+modemst1
+modemst2
+fsg
+fsc
+*.zip
+*.img
+*.bin
+*.qcn
+*.xqcn
+*.mbn
+*.log
+.test-tools/
+.test-deps/
+__pycache__/
+*.py[cod]
+.venv/
+venv/

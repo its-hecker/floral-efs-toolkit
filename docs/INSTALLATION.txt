@@ -1,0 +1,27 @@
+FLASH ONLY ON THE ORIGINAL PIXEL 4 XL (CORAL)
+
+1. Complete the ROM installation and all required wipes first.
+2. If this package enables DSDS, Android must have initialized Data after
+   the last Format Data. Boot to the setup screen once if needed, then
+   return to recovery. There is no manual dialer DSDS step.
+3. Mount/decrypt Data if this package enables DSDS. An EFS-only package
+   does not need Android's settings database and leaves DSDS unchanged.
+4. Flash this personal ZIP in OrangeFox/TWRP or use recovery ADB Sideload.
+5. Wait for the EFS success message and, for a DSDS package, the DSDS
+   success message. Reboot System and check IMEIs and cellular service.
+
+The installer does not reboot automatically. No Magisk/KSU module or
+Android boot script is installed. All four supplied backups are unchanged.
+The device check verifies coral, not ownership of the individual handset.
+
+If the installer reports an error, keep recovery open. Save the printed
+log and pre-restore copies before rebooting; recovery RAM is temporary.
+EFS writes are not automatically rolled back. A failed DSDS update after
+EFS restoration is reported explicitly as failure.
+
+Do not wipe Data after flashing. This is an on-demand restore, not a
+permanent provisioning change. It does not enable bootloader relocking.
+
+Never publish this personal ZIP or the raw modem backups it contains.
+Source, documentation and updates:
+https://github.com/its-hecker/floral-efs-toolkit

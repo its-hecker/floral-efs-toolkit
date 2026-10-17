@@ -1,0 +1,213 @@
+#!/sbin/sh
+# Hecker EFS Restore v@VERSION@ - recovery-only, original coral handset only.
+RESTORE_DSDS=@RESTORE_DSDS@
+# Functions are sourced by update-binary; this file never runs at Android boot.
+
+ui_print() {
+    printf 'ui_print %s\nui_print\n' "$*" >&"$OUTFD"
+    printf '%s\n' "$*" >> "$LOG"
+}
+
+set_progress() {
+    printf 'set_progress %s\n' "$1" >&"$OUTFD"
+}
+
+die() {
+    dsds_cleanup
+    ui_print "ERROR: $*"
+    if [ "${RESTORE_STARTED:-0}" = 1 ]; then
+        ui_print 'Keep recovery open: the restore did not complete.'
+        ui_print "Pre-restore copies: $WORKDIR/before-restore"
+    else
+        ui_print 'No restore writes were started.'
+    fi
+    ui_print "Log: $LOG"
+    exit 1
+}
+
+expected_size() {
+    case "$1" in modemst1|modemst2|fsg) echo 2097152;; fsc) echo 131072;; *) return 1;; esac
+}
+
+expected_sha256() {
+    case "$1" in
+        modemst1) echo @SHA256_MODEMST1@;;
+        modemst2) echo @SHA256_MODEMST2@;;
+        fsg) echo @SHA256_FSG@;;
+        fsc) echo @SHA256_FSC@;;
+        *) return 1;;
+    esac
+}
+
+file_bytes() {
+    wc -c < "$1" | tr -d '[:space:]'
+}
+
+file_sha256() {
+    HASH_OUTPUT=$(sha256sum "$1" 2>> "$LOG") || return 1
+    HASH_VALUE=${HASH_OUTPUT%% *}
+    [ "${#HASH_VALUE}" = 64 ] || return 1
+    case "$HASH_VALUE" in *[!0-9a-f]*) return 1;; esac
+    printf '%s\n' "$HASH_VALUE"
+}
+
+get_block_size() {
+    blockdev --getsize64 "$1" 2>> "$LOG"
+}
+
+get_block_readonly() {
+    blockdev --getro "$1" 2>> "$LOG"
+}
+
+flush_partition() {
+    sync && blockdev --flushbufs "$1" >> "$LOG" 2>&1
+}
+
+find_partition() {
+    for BASE in /dev/block/bootdevice/by-name /dev/block/by-name /dev/block/platform/*/by-name /dev/block/platform/*/*/by-name; do
+        [ -e "$BASE/$1" ] || continue
+        RESOLVED=$(readlink -f "$BASE/$1" 2>/dev/null) || continue
+        case "$RESOLVED" in /dev/block/*) ;; *) continue;; esac
+        [ -b "$RESOLVED" ] || continue
+        printf '%s\n' "$RESOLVED"
+        return 0
+    done
+    return 1
+}
+
+require_recovery() {
+    [ "$(id -u)" = 0 ] || die 'Recovery root access is required.'
+    [ "$(getprop sys.boot_completed)" != 1 ] || die 'Flash this ZIP in recovery, not in Android.'
+    if [ -n "$(getprop ro.twrp.version)" ] || [ -n "$(getprop ro.orangefox.version)" ] || [ -n "$(getprop ro.fox.version)" ]; then
+        return 0
+    fi
+    case "$(getprop ro.bootmode)" in recovery) return 0;; esac
+    case "$(getprop ro.boot.mode)" in recovery) return 0;; esac
+    if command -v pidof >/dev/null 2>&1 && pidof recovery >/dev/null 2>&1; then
+        return 0
+    fi
+    die 'OrangeFox/TWRP recovery was not detected.'
+}
+
+require_coral() {
+    PRIMARY=$(getprop ro.product.device)
+    case "$PRIMARY" in ''|coral|floral) ;; *) die "This backup is for coral; recovery reports $PRIMARY.";; esac
+    FOUND_CORAL=0
+    for PROP in ro.product.device ro.build.product ro.product.vendor.device ro.product.system.device ro.product.product.device ro.product.odm.device; do
+        DEVICE=$(getprop "$PROP")
+        case "$DEVICE" in
+            flame) die 'Pixel 4 (flame) is not supported by this personal coral backup.';;
+            coral) FOUND_CORAL=1;;
+        esac
+    done
+    [ "$FOUND_CORAL" = 1 ] || die 'Cannot verify Pixel 4 XL (coral).'
+}
+
+require_idle_radio() {
+    for SERVICE in rmt_storage vendor.rmt_storage vendor.qti.rmt_storage modem_svc tftp_server vendor.ril-daemon vendor.qcrild vendor.qcrild2; do
+        [ "$(getprop "init.svc.$SERVICE")" != running ] || die "Radio service $SERVICE is running. No restore will be attempted."
+    done
+}
+
+require_unmounted() {
+    while read -r MOUNT_SOURCE MOUNT_DEST MOUNT_OTHER; do
+        case "$MOUNT_SOURCE" in
+            /dev/*)
+                MOUNT_RESOLVED=$(readlink -f "$MOUNT_SOURCE" 2>/dev/null)
+                [ "$MOUNT_RESOLVED" != "$1" ] || die "Target $1 is mounted at $MOUNT_DEST."
+                ;;
+        esac
+    done < /proc/mounts
+}
+
+run_restore() {
+    WORKDIR="$1"
+    RESTORE_STARTED=0
+    [ -n "$LOG" ] && [ -f "$LOG" ] || exit 1
+    ui_print '========================================'
+    ui_print ' EFS Restore - Pixel 4 XL (coral)'
+    ui_print ' v@VERSION@ Recovery | Hecker (Maintainer)'
+    if [ "$RESTORE_DSDS" = 1 ]; then ui_print 'DSDS configuration enabled in this package.'; fi
+    ui_print '========================================'
+    ui_print 'Personal backup: original handset only.'
+    for TOOL in getprop id dd sha256sum blockdev wc tr readlink sync mkdir; do
+        command -v "$TOOL" >/dev/null 2>&1 || die "Missing recovery tool: $TOOL"
+    done
+    require_recovery
+    require_coral
+    require_idle_radio
+    set_progress 0.05
+
+    TARGETS="$WORKDIR/targets.txt"
+    : > "$TARGETS" || die 'Cannot create partition map.'
+    SEEN_TARGETS=''
+    # Validate the entire package and all targets before any partition write.
+    for PART in modemst1 modemst2 fsg fsc; do
+        SOURCE="$WORKDIR/efs_backup/$PART"
+        [ -f "$SOURCE" ] && [ ! -L "$SOURCE" ] || die "Missing or invalid backup: $PART"
+        EXPECTED_SIZE=$(expected_size "$PART") || die 'Unknown backup name.'
+        EXPECTED_HASH=$(expected_sha256 "$PART") || die 'Unknown backup name.'
+        [ "$(file_bytes "$SOURCE")" = "$EXPECTED_SIZE" ] || die "Backup size mismatch: $PART"
+        ACTUAL_HASH=$(file_sha256 "$SOURCE") || die "Cannot hash backup: $PART"
+        [ "$ACTUAL_HASH" = "$EXPECTED_HASH" ] || die "Backup checksum mismatch: $PART"
+        TARGET=$(find_partition "$PART") || die "Missing block partition: $PART"
+        ACTUAL_SIZE=$(get_block_size "$TARGET") || die "Cannot read target size: $PART"
+        [ "$ACTUAL_SIZE" = "$EXPECTED_SIZE" ] || die "Target size mismatch: $PART"
+        TARGET_READONLY=$(get_block_readonly "$TARGET") || die "Cannot check target permissions: $PART"
+        [ "$TARGET_READONLY" = 0 ] || die "Target is read-only: $PART"
+        for PREVIOUS in $SEEN_TARGETS; do
+            [ "$TARGET" != "$PREVIOUS" ] || die 'Two partition names resolve to the same block device.'
+        done
+        SEEN_TARGETS="$SEEN_TARGETS $TARGET"
+        require_unmounted "$TARGET"
+        printf '%s|%s|%s|%s\n' "$PART" "$TARGET" "$EXPECTED_SIZE" "$EXPECTED_HASH" >> "$TARGETS" || die 'Cannot save partition map.'
+        ui_print "Verified backup and target: $PART"
+    done
+    set_progress 0.20
+
+    # Keep all original contents in recovery RAM before overwriting anything.
+    mkdir -p "$WORKDIR/before-restore" || die 'Cannot create pre-restore backup directory.'
+    : > "$WORKDIR/before-restore/SHA256SUMS" || die 'Cannot create snapshot checksums.'
+    while IFS='|' read -r PART TARGET EXPECTED_SIZE EXPECTED_HASH; do
+        SNAPSHOT="$WORKDIR/before-restore/$PART"
+        dd if="$TARGET" of="$SNAPSHOT" bs=4096 >> "$LOG" 2>&1 || die "Cannot back up current $PART"
+        [ "$(file_bytes "$SNAPSHOT")" = "$EXPECTED_SIZE" ] || die "Incomplete current backup: $PART"
+        SNAPSHOT_HASH=$(file_sha256 "$SNAPSHOT") || die "Cannot hash current backup: $PART"
+        TARGET_HASH=$(file_sha256 "$TARGET") || die "Cannot read current partition: $PART"
+        [ "$SNAPSHOT_HASH" = "$TARGET_HASH" ] || die "Current partition changed while reading: $PART"
+        printf '%s  %s\n' "$SNAPSHOT_HASH" "$PART" >> "$WORKDIR/before-restore/SHA256SUMS" || die 'Cannot save snapshot checksum.'
+    done < "$TARGETS"
+    ui_print 'Pre-restore copies captured in recovery RAM.'
+    # Prepare and check DSDS before the first EFS write. Commit only after
+    # every restored partition has passed readback verification.
+    if [ "$RESTORE_DSDS" = 1 ]; then dsds_prepare; fi
+    set_progress 0.40
+
+    RESTORED=0
+    while IFS='|' read -r PART TARGET EXPECTED_SIZE EXPECTED_HASH; do
+        ui_print "Restoring $PART..."
+        RESTORE_STARTED=1
+        dd if="$WORKDIR/efs_backup/$PART" of="$TARGET" bs=4096 conv=notrunc >> "$LOG" 2>&1 || die "Write failed: $PART"
+        flush_partition "$TARGET" || die "Flush failed: $PART"
+        READBACK_HASH=$(file_sha256 "$TARGET") || die "Cannot verify restored partition: $PART"
+        [ "$READBACK_HASH" = "$EXPECTED_HASH" ] || die "Readback verification failed: $PART"
+        RESTORED=$((RESTORED + 1))
+        ui_print "Restored and verified: $PART"
+        case "$RESTORED" in 1) set_progress 0.55;; 2) set_progress 0.70;; 3) set_progress 0.80;; 4) set_progress 0.90;; esac
+    done < "$TARGETS"
+    [ "$RESTORED" = 4 ] || die 'The complete restore was not performed.'
+    sync || die 'Final storage sync failed.'
+    if [ "$RESTORE_DSDS" = 1 ]; then dsds_commit; fi
+    set_progress 1.00
+    ui_print 'SUCCESS: all four partitions restored and verified.'
+    if [ "$RESTORE_DSDS" = 1 ]; then
+        ui_print 'SUCCESS: DSDS enabled for the next Android boot.'
+    else
+        ui_print 'DSDS left unchanged (EFS-only package).'
+    fi
+    ui_print 'Choose Reboot System when ready.'
+    ui_print "Pre-restore copies: $WORKDIR/before-restore"
+    ui_print 'Those temporary copies disappear on recovery reboot.'
+    ui_print "Log: $LOG"
+    return 0
+}
