@@ -11,8 +11,9 @@ from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from build import build_zip, SIZES
+from build import build_zip, build_template, SIZES
 from scripts.package_source import PUBLIC_FILES, package_source
+from scripts.package_release import audit_template, package_release
 
 
 class BuilderTests(unittest.TestCase):
@@ -48,6 +49,52 @@ class BuilderTests(unittest.TestCase):
         with ZipFile(self.output) as archive:
             self.assertIn(b'RESTORE_DSDS=0', archive.read('install/restore.sh'))
             self.assertIn(b'DSDS: unchanged', archive.read('README.txt'))
+
+    def test_public_template_contains_only_installer_and_backup_guidance(self):
+        # Neighboring input backups exist, but the public path must never read
+        # or package them, nor insert their hashes in the public installer.
+        build_template(self.output)
+        audit_template(self.output)
+        with ZipFile(self.output) as archive:
+            self.assertEqual([n for n in archive.namelist() if n.startswith('efs_backup/')],
+                             ['efs_backup/README.txt'])
+            script = archive.read('install/restore.sh')
+            self.assertIn(b'BACKUP_HASH_MODE=archive', script)
+            self.assertNotIn(b'@SHA256_', script)
+            for name in SIZES:
+                self.assertNotIn('efs_backup/' + name, archive.namelist())
+                digest = hashlib.sha256((self.inputs / name).read_bytes()).hexdigest().encode()
+                self.assertNotIn(digest, script)
+            self.assertIn(b'efs_backup/modemst1', archive.read('efs_backup/README.txt'))
+
+    def test_template_cli_requires_no_backup_directory(self):
+        result = subprocess.run([sys.executable, str(ROOT / 'build.py'), '--template',
+                                 '--output', str(self.output)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        audit_template(self.output)
+
+    def test_release_packages_only_source_and_empty_template_with_checksums(self):
+        assets = package_release(self.root / 'public')
+        self.assertEqual(len(assets), 2)
+        audit_template(assets[1])
+        for asset in assets:
+            expected = hashlib.sha256(asset.read_bytes()).hexdigest() + '  ' + asset.name + '\n'
+            self.assertEqual(asset.with_suffix('.zip.sha256').read_text(), expected)
+
+    def test_public_release_audit_rejects_added_backup_payload(self):
+        build_template(self.output)
+        with ZipFile(self.output, 'a') as archive:
+            archive.writestr('efs_backup/modemst1', b'private backup placeholder')
+        with self.assertRaises(ValueError): audit_template(self.output)
+
+    def test_public_release_audit_rejects_binary_disguised_as_guidance(self):
+        build_template(self.output)
+        with ZipFile(self.output) as archive:
+            entries = {name: archive.read(name) for name in archive.namelist()}
+        entries['efs_backup/README.txt'] = b'private\x00bytes'
+        with ZipFile(self.output, 'w') as archive:
+            for name, data in entries.items(): archive.writestr(name, data)
+        with self.assertRaises(ValueError): audit_template(self.output)
 
     def test_missing_file_prevents_output(self):
         (self.inputs / 'fsc').unlink()

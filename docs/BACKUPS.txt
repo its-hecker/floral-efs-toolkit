@@ -1,0 +1,31 @@
+ADD YOUR OWN RAW EFS BACKUPS HERE BEFORE FLASHING
+
+This public ZIP contains no modem backups. Use backups from the exact
+Pixel 4 XL (coral) on which you will flash it. Never use another phone's files.
+
+Put these four raw files directly inside efs_backup/ in the ZIP:
+
+ZIP path                  Required size (bytes)
+efs_backup/modemst1        2097152
+efs_backup/modemst2        2097152
+efs_backup/fsg             2097152
+efs_backup/fsc             131072
+
+Names must match exactly, with no .img, .bin or .txt extensions. Do not put
+them in another subfolder. These must be raw partition images, not a QCN,
+tar archive or compressed backup. Do not substitute empty or dummy images.
+
+Windows: open the TEMPLATE.zip with an archive manager, open efs_backup/,
+and add your four files. Save the updated ZIP. You may leave this README.
+If extracting and repacking instead, select the contents of the extracted
+folder: META-INF/, install/, efs_backup/ and the other root entries must be
+at the ZIP root, not inside an extra enclosing folder. Use ZIP format.
+
+No Python is required for this method. Do not edit installer scripts or
+SHA256SUMS. The template hashes the files you supply in recovery and verifies
+each restored partition against those hashes; it cannot verify ownership
+or whether the backup contains working provisioning.
+
+The empty template and incomplete or incorrectly sized backups are rejected
+before restore writes. Once you add your backups, the ZIP is personal: keep
+it private. Follow README.txt at the ZIP root before flashing in OrangeFox.

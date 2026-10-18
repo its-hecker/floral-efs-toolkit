@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 from zipfile import ZipFile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from build import build_zip, SIZES
+from build import build_zip, build_template, SIZES
 from test_dsds_editor import BUSYBOX, TARGET, MODEM_TARGET, DSDS_RECORDS, encode_properties, decode_properties
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -210,6 +210,71 @@ class RestoreTests(unittest.TestCase):
             command = ['sh', '-c', shell]
         result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=30)
         return result
+
+    def prepare_public_template(self, entries=None):
+        self.zip_path = self.root / 'template.zip'
+        build_template(self.zip_path)
+        # Simulate adding raw files through an archive manager. Use exactly
+        # the distributed template; do not invoke the personal ZIP builder.
+        if entries is None:
+            entries = {'efs_backup/' + name: (self.backups / name).read_bytes() for name in NAMES}
+        with ZipFile(self.zip_path, 'a') as archive:
+            for name, data in entries.items(): archive.writestr(name, data)
+        for name in NAMES:
+            (self.work / 'efs_backup' / name).unlink()
+        with ZipFile(self.zip_path) as archive:
+            archive.extractall(self.work)
+
+    def test_user_filled_public_template_restores_every_partition_with_dsds(self):
+        self.prepare_public_template()
+        result = self.run_installer()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('SUCCESS: all four partitions restored and verified.', result.stdout)
+        self.assertIn('SUCCESS: DSDS enabled for the next Android boot.', result.stdout)
+        self.assertEqual(dict(decode_properties(self.settings.read_bytes()))[MODEM_TARGET], 'dsds')
+        for name in NAMES:
+            self.assertEqual(sha(self.blocks / name), sha(self.backups / name))
+        for row in (self.work / 'partition-state.tsv').read_text().splitlines()[1:]:
+            name, expected, before, after = row.split('|')
+            self.assertEqual(expected, sha(self.backups / name))
+            self.assertEqual(after, expected)
+        self.assert_snapshots()
+
+    def test_empty_public_template_is_rejected_before_efs_writes(self):
+        self.prepare_public_template({})
+        self.assert_rejected('success', 'Missing or invalid backup: modemst1')
+
+    def test_public_template_requires_exact_backup_names(self):
+        entries = {'efs_backup/' + name: (self.backups / name).read_bytes() for name in NAMES}
+        entries['efs_backup/fsc.img'] = entries.pop('efs_backup/fsc')
+        self.prepare_public_template(entries)
+        self.assert_rejected('success', 'Missing or invalid backup: fsc')
+
+    def test_public_template_rejects_wrong_sized_backup_before_writes(self):
+        entries = {'efs_backup/' + name: (self.backups / name).read_bytes() for name in NAMES}
+        entries['efs_backup/modemst1'] = b'wrong size'
+        self.prepare_public_template(entries)
+        self.assert_rejected('success', 'Backup size mismatch: modemst1')
+
+    def test_public_template_still_detects_failed_partition_readback(self):
+        self.prepare_public_template()
+        result = self.run_installer('readback_corrupt')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Readback verification failed: modemst2', result.stdout)
+        self.assertNotIn('SUCCESS:', result.stdout)
+        self.assertEqual(sha(self.blocks / 'fsg'), self.before['fsg'])
+        self.assert_snapshots()
+
+    def test_empty_template_real_entrypoint_gives_backup_placement_instructions(self):
+        self.prepare_public_template({})
+        script = 'exec 3>&1\nexec sh "$1" 3 3 "$2"'
+        result = subprocess.run(['sh', '-c', script, 'empty-template-test',
+                                 str(self.work / 'META-INF/com/google/android/update-binary'),
+                                 str(self.zip_path)], capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('efs_backup/', result.stdout)
+        self.assertNotIn('SUCCESS:', result.stdout)
+        self.assert_untouched()
 
     def assert_untouched(self):
         self.assertFalse((self.work / 'write-attempts.txt').exists())

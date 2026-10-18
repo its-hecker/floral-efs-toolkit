@@ -1,5 +1,25 @@
 FLASH ONLY ON THE ORIGINAL PIXEL 4 XL (CORAL)
 
+PREPARE THE PUBLIC TEMPLATE (NO PYTHON NEEDED)
+
+The TEMPLATE.zip contains no EFS backup images. Open it in an archive manager
+and place your own raw backups at these exact paths inside the ZIP:
+
+  efs_backup/modemst1  (2097152 bytes)
+  efs_backup/modemst2  (2097152 bytes)
+  efs_backup/fsg       (2097152 bytes)
+  efs_backup/fsc       (131072 bytes)
+
+Use backups from the exact handset being restored, with no filename extensions
+or extra subfolder. Save the updated ZIP. META-INF/, install/ and efs_backup/
+must remain at its root. See efs_backup/README.txt for repacking instructions.
+Do not change installer scripts or SHA256SUMS. Never add dummy/blank substitutes.
+The empty template is rejected before restore writes. After adding backups,
+keep the personalized ZIP private. A ZIP made with build.py already contains
+its backups; skip this preparation and do not replace those embedded images.
+
+FLASH IN ORANGEFOX
+
 1. Complete the ROM installation and all required wipes first.
 2. If this package enables DSDS, Android must have initialized Data after
    the last Format Data. Boot Android once if needed, let it finish starting,
@@ -12,7 +32,7 @@ FLASH ONLY ON THE ORIGINAL PIXEL 4 XL (CORAL)
    success message. Reboot System and check IMEIs and cellular service.
 
 The installer does not reboot automatically. No Magisk/KSU module or
-Android boot script is installed. All four supplied backups are unchanged.
+Android boot script is installed. All four supplied backups are copied unchanged.
 The device check verifies coral, not ownership of the individual handset.
 
 If the installer reports an error, keep recovery open. Save the printed
@@ -30,6 +50,6 @@ https://github.com/its-hecker/floral-efs-toolkit
 If the first Android boot shows 00 but a second restore works, see
 DIAGNOSTICS.md and tools/capture_diagnostics.py in this ZIP. Capture the
 failed Android boot before returning to recovery, then recovery evidence
-before restoring again. v1.5.2 saves both Android's requested DSDS mode and the
-saved modem mode together to address the clear observed in the failed boot.
-This is a targeted test release; single-flash success needs device confirmation.
+before restoring again. The maintainer tested v1.5.2 and confirmed it works
+with both DSDS settings saved together. v1.5.3 retains that logic and adds
+the public user-filled template. Support remains limited to coral.

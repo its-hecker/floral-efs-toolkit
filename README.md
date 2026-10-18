@@ -4,9 +4,9 @@
 
 Maintained by **Hecker** · [Updates](https://t.me/pixel4seriesupdates) · [Support](https://t.me/Pixel4Roms)
 
-Build an OrangeFox/TWRP ZIP from your own `modemst1`, `modemst2`, `fsg` and `fsc` backups. The generated ZIP restores those bytes directly in recovery and verifies every partition after writing. By default, it saves both `persist.radio.multisim.config=dsds` and `persist.vendor.mdm.multisim.cfg=dsds` together, keeping Android's requested mode and the saved modem mode consistent.
+Add your own `modemst1`, `modemst2`, `fsg` and `fsc` backups to the public OrangeFox/TWRP ZIP, then flash it on the original handset. It restores those bytes directly in recovery and verifies every partition after writing. Both `persist.radio.multisim.config=dsds` and `persist.vendor.mdm.multisim.cfg=dsds` are saved together, keeping Android's requested mode and the saved modem mode consistent.
 
-**No modem backups or ready-to-flash personal restore ZIPs are published here.** The release download contains the builder and source. It is not itself recovery-flashable. Every recovery ZIP must be built locally using backups from the same handset on which it will be flashed.
+**The public recovery ZIP contains no EFS files.** Download the **TEMPLATE.zip** asset from the [latest release](https://github.com/its-hecker/floral-efs-toolkit/releases/latest), add your own four backups inside `efs_backup/`, then flash the personalized ZIP. An empty or incomplete template is rejected before restore writes. No Python is needed for this method. The separate source ZIP is for developers and is not recovery-flashable.
 
 ## Support and status
 
@@ -14,25 +14,34 @@ Build an OrangeFox/TWRP ZIP from your own `modemst1`, `modemst2`, `fsg` and `fsc
 | --- | --- |
 | Pixel 4 XL / `coral` | Supported target; device and partition sizes checked at flash time |
 | Pixel 4 / `flame` | Not supported by this release |
-| EFS restore | The maintainer's original v1.4 package was reported working on the original coral handset |
-| Automatic DSDS setting | Owner confirmed activation in v1.5; v1.5.2 aligns both saved modes to address the captured boot-time clear; single-flash repair awaits device testing |
+| EFS restore and automatic DSDS | Maintainer confirmed v1.5.2 works after the two-flash fix; v1.5.3 publishes that logic with a user-filled template |
 | Magisk / KernelSU | Not required by the recovery ZIP |
 | Factory-reset permanence | Not provided; a later wipe may require restore again |
 
 The device check identifies the model, not the individual phone. File sizes and hashes do not prove that backups belong to the right handset or contain valid provisioning. This toolkit copies existing backups; it does not generate or rewrite identifiers.
 
-## Build your personal ZIP
+## Prepare the public ZIP (no Python)
 
-Install **Python 3.10 or later** on your computer. Building uses only the Python standard library; no root or Android SDK is required on the computer.
+1. Download `Floral-EFS-Restore-coral-v1.5.3-TEMPLATE.zip` from the [release assets](https://github.com/its-hecker/floral-efs-toolkit/releases/latest). Do not choose GitHub's automatic source-code downloads for flashing.
+2. Open the ZIP in an archive manager. Open its **`efs_backup/`** directory and add the following raw backups from the exact handset you intend to restore:
 
-Download and extract the [latest source release](https://github.com/its-hecker/floral-efs-toolkit/releases), or clone this repository. Place the four raw backup files in a local folder, with these exact names and sizes:
-
-| Filename | Required bytes |
+| Path inside the ZIP | Required bytes |
 | --- | ---: |
-| `modemst1` | 2,097,152 |
-| `modemst2` | 2,097,152 |
-| `fsg` | 2,097,152 |
-| `fsc` | 131,072 |
+| `efs_backup/modemst1` | 2,097,152 |
+| `efs_backup/modemst2` | 2,097,152 |
+| `efs_backup/fsg` | 2,097,152 |
+| `efs_backup/fsc` | 131,072 |
+
+3. Save the updated ZIP and copy it to the phone. Keep the names exactly as listed, without `.img`, `.bin` or `.txt` extensions. Do not put them in another subfolder. The included `efs_backup/README.txt` can stay.
+4. Follow the OrangeFox instructions below. Once filled, this ZIP contains your personal modem data: keep it private.
+
+If extracting and repacking, select the extracted folder's **contents**, so `META-INF/`, `install/` and `efs_backup/` stay directly at the ZIP root. Use ZIP format. Do not wrap everything in another folder. Do not edit installer scripts or the included `SHA256SUMS` file.
+
+Only raw partition images are accepted; a QCN or compressed backup is not a substitute. The template calculates hashes from the supplied images before restoring and verifies the written partitions against them. It cannot establish backup ownership or working provisioning.
+
+## Optional: build a ZIP with embedded backup checksums
+
+Install **Python 3.10 or later**, download and extract the source release, and place the four raw backups in a local folder using the filenames and sizes above. Building uses only Python's standard library.
 
 Run from the extracted toolkit folder. On Windows CMD, for example:
 
@@ -46,7 +55,7 @@ On Linux or macOS:
 python3 build.py --backup-dir "$HOME/coral-backups"
 ```
 
-The builder writes `dist/Floral-EFS-Restore-coral-v1.5.2-DSDS-PERSONAL.zip`. It copies backups unchanged, embeds their checksums, verifies the completed archive and refuses to overwrite an existing output.
+The builder writes `dist/Floral-EFS-Restore-coral-v1.5.3-DSDS-PERSONAL.zip`. It copies backups unchanged, embeds their checksums, verifies the completed archive and refuses to overwrite an existing output. The backups are already included in this output; do not replace them manually afterward.
 
 For an EFS-only package that leaves DSDS unchanged and does not require readable Data:
 
@@ -72,12 +81,12 @@ The four target partitions are shared between slots. This ZIP does not change th
 
 The captured failed boot reports Android requesting DSDS while the saved modem mode is `ss`. `rmt_storage` detects an SS-to-DSDS change and explicitly clears both modem stores. Later in that same boot the modem saves its mode as DSDS, explaining the observed benefit of restoring again afterward.
 
-v1.5.2 addresses this mismatch by saving both persistent mode properties together. It also requires the existing modem initialization marker, since a missing marker independently triggers a clear. **This is a targeted test release, not yet a device-verified single-flash repair.** See [diagnostics and verification](docs/DIAGNOSTICS.md). No further reset is needed on a currently working phone.
+v1.5.2 addresses this mismatch by saving both persistent mode properties together and requiring the existing modem initialization marker. **The maintainer tested that build and confirmed it works.** v1.5.3 keeps that restore/DSDS logic and adds the public template. This confirmation concerns the tested coral handset, not every ROM or device. See [diagnostics](docs/DIAGNOSTICS.md) if the symptom recurs.
 
 ## Checks and failure handling
 
 - Requires recovery root, coral identity and inactive known modem services.
-- Checks every backup hash, exact source and target sizes, write protection and mount state before restoring.
+- Checks exact source and target sizes, write protection and mount state before restoring. Templates calculate hashes of user-supplied files; locally built personal ZIPs additionally check embedded backup hashes.
 - Saves verified pre-restore copies of all four partitions in recovery RAM.
 - Flushes and hashes each partition after writing; a failed write never produces overall success.
 - For DSDS, requires the existing modem initialization marker, validates Android's protobuf database, preserves unrelated records and unknown fields, and stages both settings inside the existing encrypted directory.
@@ -96,7 +105,7 @@ python3 -m pip install -r requirements-test.txt
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-On Linux, install `busybox-static` to exercise BusyBox ash, awk and filesystem applets as used by recovery. Set `EFS_TEST_BUSYBOX` to an explicit BusyBox path if needed. CI requires BusyBox and publishes only an allowlisted source archive.
+On Linux, install `busybox-static` to exercise BusyBox ash, awk and filesystem applets as used by recovery. Set `EFS_TEST_BUSYBOX` to an explicit BusyBox path if needed. `python3 scripts/package_release.py` builds the allowlisted source archive and audited text-only recovery template. CI publishes these public assets and their checksums; personal backups are never inputs to that job.
 
 ## Credits and license
 

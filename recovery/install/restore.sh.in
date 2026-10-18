@@ -1,6 +1,7 @@
 #!/sbin/sh
 # Hecker EFS Restore v@VERSION@ - recovery-only, original coral handset only.
 RESTORE_DSDS=@RESTORE_DSDS@
+BACKUP_HASH_MODE=@BACKUP_HASH_MODE@
 # Functions are sourced by update-binary; this file never runs at Android boot.
 
 ui_print() {
@@ -30,6 +31,17 @@ expected_size() {
 }
 
 expected_sha256() {
+    # A public template has no user's hashes at packaging time. Hash each
+    # supplied raw image in recovery before writes, then verify target readback.
+    # The optional local builder retains its embedded known-hash checks.
+    case "$BACKUP_HASH_MODE" in
+        archive)
+            case "$1" in modemst1|modemst2|fsg|fsc) ;; *) return 1;; esac
+            file_sha256 "$WORKDIR/efs_backup/$1"
+            return $?;;
+        embedded) ;;
+        *) return 1;;
+    esac
     case "$1" in
         modemst1) echo @SHA256_MODEMST1@;;
         modemst2) echo @SHA256_MODEMST2@;;
@@ -146,8 +158,8 @@ run_restore() {
         SOURCE="$WORKDIR/efs_backup/$PART"
         [ -f "$SOURCE" ] && [ ! -L "$SOURCE" ] || die "Missing or invalid backup: $PART"
         EXPECTED_SIZE=$(expected_size "$PART") || die 'Unknown backup name.'
-        EXPECTED_HASH=$(expected_sha256 "$PART") || die 'Unknown backup name.'
         [ "$(file_bytes "$SOURCE")" = "$EXPECTED_SIZE" ] || die "Backup size mismatch: $PART"
+        EXPECTED_HASH=$(expected_sha256 "$PART") || die "Cannot determine backup checksum: $PART"
         ACTUAL_HASH=$(file_sha256 "$SOURCE") || die "Cannot hash backup: $PART"
         [ "$ACTUAL_HASH" = "$EXPECTED_HASH" ] || die "Backup checksum mismatch: $PART"
         TARGET=$(find_partition "$PART") || die "Missing block partition: $PART"
@@ -207,7 +219,6 @@ run_restore() {
     if [ "$RESTORE_DSDS" = 1 ]; then
         ui_print 'SUCCESS: DSDS enabled for the next Android boot.'
         ui_print 'Both radio and saved modem configuration set to DSDS.'
-        ui_print 'Single-flash repair requires confirmation in Android.'
     else
         ui_print 'DSDS left unchanged (EFS-only package).'
     fi

@@ -15,7 +15,7 @@ The recovery capture before the second restore shows both `modemst` hashes diffe
 
 The first restore's recovery log is not in these two captures: recovery RAM was lost on reboot. The captures establish the boot-time clear, not the precise before/after bytes of the first flash. Personal logs and partition hashes remain private.
 
-## v1.5.2 targeted test release
+## v1.5.2 fix and v1.5.3 public release
 
 The recovery installer now saves both persistent mode properties as `dsds` in one atomic property-file replacement:
 
@@ -24,9 +24,9 @@ The recovery installer now saves both persistent mode properties as `dsds` in on
 
 Static inspection of the vendor `rmt_storage` artifact confirms that its mode-switch clear is skipped when these values agree. It also confirms a separate clear path when `/data/vendor/modem_fdr/fdr_check` is absent. The DSDS installer requires this existing Android-created marker before writing EFS; it never creates, deletes or edits the marker.
 
-**The cause of this captured clear is identified; single-flash success with the new settings still needs device confirmation.** No firmware patches, identifier changes, reset-marker writes or Android boot scripts are introduced. The EFS backup payloads remain byte-for-byte unchanged. An EFS-only package leaves the prior behavior intact.
+**The maintainer tested v1.5.2 and confirmed it works.** v1.5.3 retains that DSDS fix and publishes an empty recovery template that users fill with their own backups. No firmware patches, identifier changes, reset-marker writes or Android boot scripts are introduced. Supplied EFS images are restored byte-for-byte. An EFS-only package leaves the prior behavior intact.
 
-On the next planned install, finish the ROM's wipes, let Android initialize Data and the modem once, then flash the v1.5.2 personal ZIP in recovery. The dialer toggle is unnecessary. Check both IMEIs and cellular service on the following Android boot. No reset is needed on a currently working phone solely to test this release.
+On the next planned install, finish the ROM's wipes, let Android initialize Data and the modem once, then flash the personalized ZIP in recovery. The dialer toggle is unnecessary. Check both IMEIs and cellular service on the following Android boot. No reset is needed on a currently working phone solely to test the release.
 
 ## Capture a failed first boot
 
@@ -70,4 +70,4 @@ If convenient, run the recovery collector immediately after the first flash and 
 - Different hashes show that bytes changed. **That alone does not prove corruption or erasure**: normal modem operation also writes its storage. Correlate the differences with radio errors and reset/initialization messages.
 - Flag-file presence or timestamps are evidence to compare, not instructions to create, delete or bypass those flags.
 
-If the symptom recurs with v1.5.2, inspect both mode properties, the explicit `rmt_storage` clear messages, the reset marker and the modem crash reason together. The reported working fallback remains flash, boot Android, return to recovery, restore again. Device testing is required before describing the new release as a verified single-flash fix.
+If the symptom recurs, inspect both mode properties, the explicit `rmt_storage` clear messages, the reset marker and the modem crash reason together. The previously reported fallback remains flash, boot Android, return to recovery, restore again. Maintainer confirmation concerns the tested coral handset and does not guarantee identical behavior on every ROM or phone.

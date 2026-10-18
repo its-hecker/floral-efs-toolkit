@@ -2,9 +2,11 @@
 
 ## Packaging boundary
 
-The public repository stores recovery templates and a local Python builder. Backup bytes enter only through `--backup-dir`. The builder validates exact lengths, computes SHA-256 hashes, fills the shell template and verifies the completed personal ZIP. It never sends data over the network.
+The public repository stores recovery templates and a local Python builder. A user can add their raw backups to `efs_backup/` inside the published empty recovery template, without Python. The alternative local builder accepts `--backup-dir`, validates exact lengths and embeds each image's SHA-256 hash in a personal ZIP. It never sends data over the network.
 
-The public release is a source archive assembled from an explicit file allowlist. It excludes the `dist` folder, backup folders, local dependencies, binaries and all personal recovery ZIPs. GitHub's automatic source archives likewise contain only tracked public source.
+The stable public release includes an allowlisted source archive and an empty recovery template. `scripts/package_release.py` accepts no backup directory; it renders the installer using only public text, adds `efs_backup/README.txt` and audits the template against an exact entry allowlist. Every entry must be UTF-8 text without NULs and shorter than the smallest supported raw backup. No personal images or dummy images are packaged. Source archives exclude `dist`, backup folders, local dependencies, binaries and all personal ZIPs. CI publishes only these two audited assets and their checksums.
+
+The public template uses `BACKUP_HASH_MODE=archive`: it calculates source image hashes in recovery before any restore writes and stores them in the validated target map for post-write readback. These are hashes of the supplied bytes, not independent known-good fingerprints. ZIP extraction checks CRC; source/target sizes and all other recovery checks still apply. A ZIP generated from `--backup-dir` uses `BACKUP_HASH_MODE=embedded` and additionally compares sources against the hashes recorded during building. The public template's `SHA256SUMS` covers its shipped installer/documentation files; adding personal images does not require editing that file.
 
 ## Recovery flow
 
@@ -28,13 +30,13 @@ The failed-boot evidence shows `rmt_storage` comparing Android's requested DSDS 
 
 The same artifact has a separate factory-reset check for `/data/vendor/modem_fdr/fdr_check`. A missing marker sets the clear flag even when the two modes agree. A DSDS package therefore requires this existing regular file, with no symlinks in its path, before EFS writes. It never creates, removes or edits the marker. Android must initialize it normally. An EFS-only package skips the entire Data/DSDS path, including this check, and retains the previous restore behavior.
 
-The installer saves both settings in one atomic property-file replacement for the next boot. Live modem behavior cannot be verified in recovery. v1.5.2 targets the clear observed in the provided capture; successful single-flash restoration still requires a handset test. It does not establish persistence through a subsequent factory reset.
+The installer saves both settings in one atomic property-file replacement for the next boot. Live modem behavior cannot be verified in recovery. The maintainer subsequently tested v1.5.2 and confirmed that it works. v1.5.3 preserves the tested DSDS logic and adds user-filled public packaging. This does not establish support for every handset/ROM or persistence through a subsequent factory reset.
 
 ## Validation scope
 
 Tests use generated synthetic backups, mock device properties and regular files as partition targets. The production copy, hashing, protobuf editor and failure paths are exercised under BusyBox. SELinux and mount availability are simulated because the test host is not Android recovery. Google's protobuf parser independently validates generated property messages.
 
-The previous personal v1.4 EFS restore was reported working by its owner. That confirmation does not validate other handsets, ROMs, carrier configurations, flame support, reset permanence or bootloader relocking.
+The personal v1.5.2 restore with the two-property DSDS fix was reported working by its owner. The public template path is additionally exercised using synthetic backups, actual extraction/copy/hashing and simulated block devices. These checks do not validate other handsets, ROMs, carrier configurations, flame support, reset permanence or bootloader relocking.
 
 ## References
 

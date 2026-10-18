@@ -1,4 +1,4 @@
-name: Verify toolkit and publish source releases
+name: Verify toolkit and publish public releases
 
 on:
   push:
@@ -38,14 +38,16 @@ jobs:
         env:
           EFS_REQUIRE_BUSYBOX: '1'
         run: python -m unittest discover -s tests -p 'test_*.py' -v
-      - name: Package public source only
-        run: python scripts/package_source.py
+      - name: Package public source and empty recovery template
+        run: python scripts/package_release.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: floral-efs-toolkit-source
+          name: floral-efs-toolkit-public
           path: |
             public-dist/*-source.zip
             public-dist/*-source.zip.sha256
+            public-dist/*-TEMPLATE.zip
+            public-dist/*-TEMPLATE.zip.sha256
           if-no-files-found: error
 
   release:
@@ -64,9 +66,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-      - name: Package public source only
-        run: python scripts/package_source.py
-      - name: Publish source prerelease
+      - name: Package public source and empty recovery template
+        run: python scripts/package_release.py
+      - name: Publish stable public release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -74,11 +76,12 @@ jobs:
           VERSION="$(cat VERSION)"
           TAG="v${VERSION}"
           ASSET="public-dist/Floral-EFS-Toolkit-v${VERSION}-source.zip"
+          TEMPLATE="public-dist/Floral-EFS-Restore-coral-v${VERSION}-TEMPLATE.zip"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release already exists; refusing to replace it." >&2
             exit 1
           fi
-          gh release create "$TAG" "$ASSET" "$ASSET.sha256" \
+          gh release create "$TAG" "$ASSET" "$ASSET.sha256" "$TEMPLATE" "$TEMPLATE.sha256" \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Floral EFS Toolkit ${TAG}" --prerelease \
+            --title "Floral EFS Toolkit ${TAG}" --latest \
             --notes-file docs/RELEASE_NOTES.md
