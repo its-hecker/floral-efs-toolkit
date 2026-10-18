@@ -1,7 +1,8 @@
 ADD YOUR OWN RAW EFS BACKUPS HERE BEFORE FLASHING
 
 This public ZIP contains no modem backups. Use backups from the exact
-Pixel 4 XL (coral) on which you will flash it. Never use another phone's files.
+Pixel 4 (flame) or Pixel 4 XL (coral) on which you will flash it. Never use
+another phone's files, including backups from the other supported model.
 
 Put these four raw files directly inside efs_backup/ in the ZIP:
 

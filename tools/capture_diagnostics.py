@@ -58,7 +58,7 @@ done
 '''
 
 RESTORE_LOG_SCRIPT = r'''
-for directory in /tmp/hecker-efs-coral.*; do
+for directory in /tmp/hecker-efs-floral.* /tmp/hecker-efs-coral.*; do
     [ -d "$directory" ] || continue
     for name in restore.log partition-state.tsv before-restore/SHA256SUMS; do
         file="$directory/$name"
@@ -106,8 +106,9 @@ def parse_properties(data: bytes) -> dict[str, str]:
 
 def verify_mode(properties: dict[str, str], mode: str) -> None:
     devices = [properties.get(name, '') for name in ('ro.product.device', 'ro.build.product', 'ro.product.vendor.device')]
-    if 'flame' in devices or 'coral' not in devices:
-        raise ValueError('This diagnostic collector requires Pixel 4 XL (coral)')
+    supported = set(devices) & {'coral', 'flame'}
+    if devices[0] not in ('', 'floral', 'coral', 'flame') or len(supported) != 1:
+        raise ValueError('This diagnostic collector requires a consistent Pixel 4 (flame) or Pixel 4 XL (coral) identity')
     recovery = any(properties.get(name) for name in ('ro.twrp.version', 'ro.orangefox.version', 'ro.fox.version')) or any(
         properties.get(name) == 'recovery' for name in ('ro.bootmode', 'ro.boot.mode'))
     if (mode == 'recovery') != recovery:

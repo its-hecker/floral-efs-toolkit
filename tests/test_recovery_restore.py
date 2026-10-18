@@ -31,8 +31,9 @@ getprop() {
         sys.boot_completed) [ "$SCENARIO" = android ] && echo 1 || echo 0;;
         ro.twrp.version) [ "$SCENARIO" = no_recovery ] || echo '3.7.0';;
         ro.product.device|ro.build.product)
-            case "$SCENARIO" in flame) echo flame;; unknown_device) echo floral;; *) echo coral;; esac;;
-        ro.product.vendor.device) [ "$SCENARIO" != conflicting_device ] || echo flame;;
+            case "$SCENARIO" in flame) echo flame;; unknown_device|floral_flame) echo floral;; other_device) echo sunfish;; *) echo coral;; esac;;
+        ro.product.vendor.device)
+            case "$SCENARIO" in conflicting_device|floral_flame) echo flame;; esac;;
         init.svc.rmt_storage) [ "$SCENARIO" != active_radio ] || echo running;;
         ro.persistent_properties.ready) [ "$SCENARIO" != property_service_active ] || echo true;;
     esac
@@ -244,6 +245,40 @@ class RestoreTests(unittest.TestCase):
         self.prepare_public_template({})
         self.assert_rejected('success', 'Missing or invalid backup: modemst1')
 
+    def test_shared_public_template_restores_on_flame_with_dsds(self):
+        self.prepare_public_template()
+        result = self.run_installer('flame')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        settings = dict(decode_properties(self.settings.read_bytes()))
+        self.assertEqual((settings[TARGET], settings[MODEM_TARGET]), ('dsds', 'dsds'))
+        for name in NAMES:
+            self.assertEqual(sha(self.blocks / name), sha(self.backups / name))
+        self.assert_snapshots()
+
+    def test_shared_recovery_alias_requires_a_specific_flame_identity(self):
+        self.prepare_public_template()
+        result = self.run_installer('floral_flame')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_shared_public_template_rejects_other_phones(self):
+        self.prepare_public_template()
+        self.assert_rejected('other_device', 'Only Pixel 4 / 4 XL are supported')
+
+    def test_shared_public_template_rejects_conflicting_model_properties(self):
+        self.prepare_public_template()
+        self.assert_rejected('conflicting_device', 'Conflicting coral/flame device properties')
+
+    def test_personal_flame_zip_rejects_coral_then_accepts_flame(self):
+        path = self.root / 'flame-personal.zip'
+        build_zip(self.backups, path, device='flame')
+        with ZipFile(path) as archive:
+            archive.extractall(self.work)
+        self.assert_rejected('success', 'This personal ZIP targets flame; recovery reports coral')
+        result = self.run_installer('flame')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for name in NAMES:
+            self.assertEqual(sha(self.blocks / name), sha(self.backups / name))
+
     def test_public_template_requires_exact_backup_names(self):
         entries = {'efs_backup/' + name: (self.backups / name).read_bytes() for name in NAMES}
         entries['efs_backup/fsc.img'] = entries.pop('efs_backup/fsc')
@@ -314,14 +349,14 @@ class RestoreTests(unittest.TestCase):
             self.assertEqual(expected, sha(self.backups / name))
             self.assertEqual(after, expected)
 
-    def test_flame_rejected(self):
-        self.assert_rejected('flame', 'This backup is for coral')
+    def test_personal_coral_zip_rejects_flame(self):
+        self.assert_rejected('flame', 'This personal ZIP targets coral; recovery reports flame')
 
     def test_unknown_device_rejected(self):
-        self.assert_rejected('unknown_device', 'Cannot verify Pixel 4 XL')
+        self.assert_rejected('unknown_device', 'Cannot verify Pixel 4 (flame) or Pixel 4 XL (coral)')
 
     def test_conflicting_flame_identity_rejected(self):
-        self.assert_rejected('conflicting_device', 'flame) is not supported')
+        self.assert_rejected('conflicting_device', 'Conflicting coral/flame device properties')
 
     def test_android_rejected_even_if_recovery_properties_present(self):
         self.assert_rejected('android', 'Flash this ZIP in recovery')

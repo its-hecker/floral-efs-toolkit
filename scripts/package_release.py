@@ -45,7 +45,7 @@ def package_release(output_dir: Path | None = None) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     release = version()
     source = output_dir / f'Floral-EFS-Toolkit-v{release}-source.zip'
-    template = output_dir / f'Floral-EFS-Restore-coral-v{release}-TEMPLATE.zip'
+    template = output_dir / f'Floral-EFS-Restore-floral-v{release}-TEMPLATE.zip'
     for path in (source, source.with_suffix('.zip.sha256'), template, template.with_suffix('.zip.sha256')):
         if path.exists() or path.is_symlink():
             raise FileExistsError(f'Refusing to replace release asset: {path.name}')

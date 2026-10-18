@@ -67,9 +67,23 @@ class DiagnosticTests(unittest.TestCase):
             with self.assertRaises(ValueError): capture.collect('recovery', folder, 'adb')
         self.assertFalse(folder.exists())
 
-    def test_flame_rejected(self):
+    def test_conflicting_flame_and_coral_identity_is_rejected(self):
         self.properties = b'ro.product.device=flame\nro.build.product=coral\n'
         folder = self.root / 'wrong-device'
+        with patch.object(capture, 'adb_run', side_effect=self.adb):
+            with self.assertRaises(ValueError): capture.collect('android', folder, 'adb')
+        self.assertFalse(folder.exists())
+
+    def test_flame_android_capture_is_supported(self):
+        self.properties = self.properties.replace(b'coral', b'flame')
+        folder = self.root / 'flame'
+        with patch.object(capture, 'adb_run', side_effect=self.adb):
+            capture.collect('android', folder, 'adb')
+        self.assertTrue(self.manifest(folder)['complete'])
+
+    def test_primary_identity_from_other_phone_is_rejected(self):
+        self.properties = b'ro.product.device=sunfish\nro.build.product=coral\n'
+        folder = self.root / 'other-phone'
         with patch.object(capture, 'adb_run', side_effect=self.adb):
             with self.assertRaises(ValueError): capture.collect('android', folder, 'adb')
         self.assertFalse(folder.exists())

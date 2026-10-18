@@ -15,7 +15,9 @@ The recovery capture before the second restore shows both `modemst` hashes diffe
 
 The first restore's recovery log is not in these two captures: recovery RAM was lost on reboot. The captures establish the boot-time clear, not the precise before/after bytes of the first flash. Personal logs and partition hashes remain private.
 
-## v1.5.2 fix and v1.5.3 public release
+## DSDS fix and public releases
+
+v1.5.4 supports Pixel 4 (flame) and Pixel 4 XL (coral) in the shared template and read-only collector. Each phone still requires its own backups. The collector accepts either consistent model identity and reads logs from the current floral directory and older coral directory.
 
 The recovery installer now saves both persistent mode properties as `dsds` in one atomic property-file replacement:
 

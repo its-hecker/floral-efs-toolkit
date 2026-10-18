@@ -1,10 +1,12 @@
-Stable public release for **Pixel 4 XL (coral)**, maintained by **Hecker**.
+Stable public release for **Pixel 4 (flame) and Pixel 4 XL (coral)**, maintained by **Hecker**.
 
-The maintainer tested v1.5.2 and confirmed the restore works with the DSDS fix. v1.5.3 retains that restore/DSDS logic and adds a public recovery template that users can personalize without Python.
+The maintainer tested v1.5.2 and confirmed the restore works with the DSDS fix. v1.5.4 retains that restore/DSDS logic and enables both flame and coral in the shared public template and read-only diagnostic collector. The maintainer reports both models supported.
+
+The earlier public ZIP explicitly checked for coral. This release corrects that check, rejects conflicting model properties and keeps the exact partition-size checks. The optional builder supports `--device flame`; personal ZIPs remain restricted to their selected model. Backups from different phones are never interchangeable.
 
 ### Download and add your backups
 
-Download **Floral-EFS-Restore-coral-v1.5.3-TEMPLATE.zip** from the assets below. **It contains no EFS images or dummy backups.** Open it in an archive manager and add your own raw backups at these exact paths inside the ZIP:
+Download **Floral-EFS-Restore-floral-v1.5.4-TEMPLATE.zip** from the assets below. **It contains no EFS images or dummy backups.** Open it in an archive manager and add your own raw backups at these exact paths inside the ZIP:
 
 | ZIP path | Required bytes |
 | --- | ---: |
@@ -26,6 +28,6 @@ The empty template, missing files and incorrectly sized images are rejected befo
 
 The DSDS fix saves both Android's requested mode and the saved modem mode as `dsds` together. Existing modem initialization is required; the installer never creates or changes reset markers. No Magisk/KernelSU module is needed.
 
-The separate **Floral-EFS-Toolkit-v1.5.3-source.zip** contains source and the optional Python builder, which embeds known backup hashes. It is not recovery-flashable. Published assets and CI artifacts contain no personal EFS files or personal backup fingerprints.
+The separate **Floral-EFS-Toolkit-v1.5.4-source.zip** contains source and the optional Python builder, which embeds known backup hashes. It is not recovery-flashable. Published assets and CI artifacts contain no personal EFS files or personal backup fingerprints.
 
-Support is limited to coral. Pixel 4 / flame is not supported. Maintainer testing does not establish compatibility with every ROM, permanence through factory resets or bootloader-relocking support.
+Supports Pixel 4 (flame) and Pixel 4 XL (coral). Each handset requires its own original backups. Maintainer testing does not establish compatibility with every ROM, permanence through factory resets or bootloader-relocking support.

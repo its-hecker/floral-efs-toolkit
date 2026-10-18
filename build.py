@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build an offline personal coral recovery ZIP; never upload modem backups."""
+"""Build offline floral recovery ZIPs; never upload personal modem backups."""
 from __future__ import annotations
 
 import argparse
@@ -32,11 +32,14 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def installer_entries(hashes: dict[str, str] | None, *, enable_dsds: bool) -> dict[str, bytes]:
+def installer_entries(hashes: dict[str, str] | None, *, enable_dsds: bool, device: str) -> dict[str, bytes]:
     """Render public installer text; None selects user-filled template hashes."""
+    if device not in ('coral', 'flame', 'floral'):
+        raise ValueError('Unsupported target; choose coral or flame')
     release = version()
     replacements = {'@VERSION@': release, '@RESTORE_DSDS@': '1' if enable_dsds else '0',
-                    '@BACKUP_HASH_MODE@': 'embedded' if hashes is not None else 'archive'}
+                    '@BACKUP_HASH_MODE@': 'embedded' if hashes is not None else 'archive',
+                    '@TARGET_DEVICE@': device}
     replacements.update({f'@SHA256_{name.upper()}@': hashes[name] if hashes is not None else 'unused'
                          for name in SIZES})
     entries = {}
@@ -51,7 +54,7 @@ def installer_entries(hashes: dict[str, str] | None, *, enable_dsds: bool) -> di
     entries['DIAGNOSTICS.md'] = (ROOT / 'docs/DIAGNOSTICS.md').read_bytes()
     note = ('DSDS: both radio and saved modem mode configured. Initialized Data and modem marker required.\n'
             if enable_dsds else 'DSDS: unchanged. This package restores EFS only.\n')
-    label = ('PERSONAL BACKUP - ORIGINAL PIXEL 4 XL (CORAL) ONLY\n' if hashes is not None else
+    label = (f'PERSONAL BACKUP - ORIGINAL {device.upper()} HANDSET ONLY\n' if hashes is not None else
              'EMPTY PUBLIC TEMPLATE - ADD YOUR OWN FOUR BACKUPS TO efs_backup/ BEFORE FLASHING\n')
     entries['README.txt'] = (f'Floral EFS Toolkit v{release} | Hecker (Maintainer)\n' + label
                            + note + '\n' + (ROOT / 'docs/INSTALLATION.txt').read_text(encoding='utf-8')).encode('utf-8')
@@ -96,8 +99,10 @@ def write_zip(entries: dict[str, bytes], output: Path) -> Path:
     return output
 
 
-def build_zip(backup_dir: Path, output: Path, *, enable_dsds: bool = True) -> Path:
+def build_zip(backup_dir: Path, output: Path, *, enable_dsds: bool = True, device: str = 'coral') -> Path:
     """Validate personal backups before writing a ZIP with embedded hashes."""
+    if device not in ('coral', 'flame'):
+        raise ValueError('Personal ZIPs require a specific target: coral or flame')
     backup_dir = Path(backup_dir).expanduser().resolve()
     if not backup_dir.is_dir():
         raise ValueError('Backup directory does not exist')
@@ -114,14 +119,14 @@ def build_zip(backup_dir: Path, output: Path, *, enable_dsds: bool = True) -> Pa
             raise ValueError(f'Backup changed while being read: {name}')
         backups[name] = data
         hashes[name] = sha256(data)
-    entries = installer_entries(hashes, enable_dsds=enable_dsds)
+    entries = installer_entries(hashes, enable_dsds=enable_dsds, device=device)
     entries.update({f'efs_backup/{name}': data for name, data in backups.items()})
     return write_zip(entries, output)
 
 
-def build_template(output: Path, *, enable_dsds: bool = True) -> Path:
+def build_template(output: Path, *, enable_dsds: bool = True, device: str = 'floral') -> Path:
     """Build an empty public recovery template without accepting backup inputs."""
-    entries = installer_entries(None, enable_dsds=enable_dsds)
+    entries = installer_entries(None, enable_dsds=enable_dsds, device=device)
     entries['efs_backup/README.txt'] = (ROOT / 'docs/BACKUPS.txt').read_bytes()
     # Every public entry is bounded text. Never read a backup folder or add
     # placeholder images that could be mistaken for a usable personal backup.
@@ -140,20 +145,23 @@ def main() -> None:
     source.add_argument('--template', action='store_true', help='Build an empty public ZIP for users to fill')
     parser.add_argument('--output', type=Path, help='New private ZIP path; existing files are never overwritten')
     parser.add_argument('--no-dsds', action='store_true', help='Build an EFS-only ZIP that does not need Data access')
+    parser.add_argument('--device', choices=('coral', 'flame'),
+                        help='Personal ZIP target (default coral); public templates support both by default')
     args = parser.parse_args()
     suffix = 'EFS-only' if args.no_dsds else 'DSDS'
-    filename = (f'Floral-EFS-Restore-coral-v{version()}-TEMPLATE.zip' if args.template else
-                f'Floral-EFS-Restore-coral-v{version()}-{suffix}-PERSONAL.zip')
+    device = args.device or ('floral' if args.template else 'coral')
+    filename = (f'Floral-EFS-Restore-{device}-v{version()}-TEMPLATE.zip' if args.template else
+                f'Floral-EFS-Restore-{device}-v{version()}-{suffix}-PERSONAL.zip')
     output = args.output or ROOT / 'dist' / filename
     try:
-        result = (build_template(output, enable_dsds=not args.no_dsds) if args.template else
-                  build_zip(args.backup_dir, output, enable_dsds=not args.no_dsds))
+        result = (build_template(output, enable_dsds=not args.no_dsds, device=device) if args.template else
+                  build_zip(args.backup_dir, output, enable_dsds=not args.no_dsds, device=device))
     except (OSError, ValueError) as error:
         parser.exit(1, f'Build failed: {error}\n')
     print(f'Built: {result}')
     print(f'SHA256: {sha256(result.read_bytes())}')
     print('Add your own backups to efs_backup/ before flashing.' if args.template else
-          'Keep this ZIP private. Flash it only on the original coral handset.')
+          f'Keep this ZIP private. Flash it only on the original {device} handset.')
 
 
 if __name__ == '__main__':

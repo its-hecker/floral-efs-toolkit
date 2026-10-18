@@ -60,6 +60,7 @@ class BuilderTests(unittest.TestCase):
                              ['efs_backup/README.txt'])
             script = archive.read('install/restore.sh')
             self.assertIn(b'BACKUP_HASH_MODE=archive', script)
+            self.assertIn(b'TARGET_DEVICE=floral', script)
             self.assertNotIn(b'@SHA256_', script)
             for name in SIZES:
                 self.assertNotIn('efs_backup/' + name, archive.namelist())
@@ -72,6 +73,16 @@ class BuilderTests(unittest.TestCase):
                                  '--output', str(self.output)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         audit_template(self.output)
+
+    def test_flame_personal_build_records_the_selected_model(self):
+        build_zip(self.inputs, self.output, device='flame')
+        with ZipFile(self.output) as archive:
+            self.assertIn(b'TARGET_DEVICE=flame', archive.read('install/restore.sh'))
+            self.assertIn(b'ORIGINAL FLAME HANDSET', archive.read('README.txt'))
+
+    def test_personal_builder_rejects_unsupported_models(self):
+        with self.assertRaises(ValueError): build_zip(self.inputs, self.output, device='sunfish')
+        self.assertFalse(self.output.exists())
 
     def test_release_packages_only_source_and_empty_template_with_checksums(self):
         assets = package_release(self.root / 'public')

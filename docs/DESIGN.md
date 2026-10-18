@@ -30,13 +30,13 @@ The failed-boot evidence shows `rmt_storage` comparing Android's requested DSDS 
 
 The same artifact has a separate factory-reset check for `/data/vendor/modem_fdr/fdr_check`. A missing marker sets the clear flag even when the two modes agree. A DSDS package therefore requires this existing regular file, with no symlinks in its path, before EFS writes. It never creates, removes or edits the marker. Android must initialize it normally. An EFS-only package skips the entire Data/DSDS path, including this check, and retains the previous restore behavior.
 
-The installer saves both settings in one atomic property-file replacement for the next boot. Live modem behavior cannot be verified in recovery. The maintainer subsequently tested v1.5.2 and confirmed that it works. v1.5.3 preserves the tested DSDS logic and adds user-filled public packaging. This does not establish support for every handset/ROM or persistence through a subsequent factory reset.
+The installer saves both settings in one atomic property-file replacement for the next boot. Live modem behavior cannot be verified in recovery. The maintainer subsequently tested v1.5.2 and confirmed that it works. v1.5.4 preserves the DSDS logic and accepts flame and coral in the shared public template. A consistent specific model identity and exact target partition sizes are required; a generic floral identity alone is insufficient. Personal builds default to coral and accept `--device flame` for a flame-specific package, preserving the cross-model guard. Support for both models does not establish compatibility with every handset/ROM or persistence through a subsequent factory reset.
 
 ## Validation scope
 
 Tests use generated synthetic backups, mock device properties and regular files as partition targets. The production copy, hashing, protobuf editor and failure paths are exercised under BusyBox. SELinux and mount availability are simulated because the test host is not Android recovery. Google's protobuf parser independently validates generated property messages.
 
-The personal v1.5.2 restore with the two-property DSDS fix was reported working by its owner. The public template path is additionally exercised using synthetic backups, actual extraction/copy/hashing and simulated block devices. These checks do not validate other handsets, ROMs, carrier configurations, flame support, reset permanence or bootloader relocking.
+The personal v1.5.2 restore with the two-property DSDS fix was reported working by its owner. The maintainer also reports both models supported. The public template path is exercised for flame and coral using synthetic backups, actual extraction/copy/hashing and simulated block devices. Tests include rejection of other models, conflicting properties and mismatched personal-package targets. These checks do not validate every individual handset, ROM, carrier configuration, reset permanence or bootloader relocking.
 
 ## References
 

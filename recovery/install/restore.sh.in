@@ -1,7 +1,8 @@
 #!/sbin/sh
-# Hecker EFS Restore v@VERSION@ - recovery-only, original coral handset only.
+# Hecker EFS Restore v@VERSION@ - recovery-only, original handset backups only.
 RESTORE_DSDS=@RESTORE_DSDS@
 BACKUP_HASH_MODE=@BACKUP_HASH_MODE@
+TARGET_DEVICE=@TARGET_DEVICE@
 # Functions are sourced by update-binary; this file never runs at Android boot.
 
 ui_print() {
@@ -101,18 +102,27 @@ require_recovery() {
     die 'OrangeFox/TWRP recovery was not detected.'
 }
 
-require_coral() {
+require_supported_device() {
     PRIMARY=$(getprop ro.product.device)
-    case "$PRIMARY" in ''|coral|floral) ;; *) die "This backup is for coral; recovery reports $PRIMARY.";; esac
-    FOUND_CORAL=0
+    case "$PRIMARY" in ''|coral|flame|floral) ;; *) die "Only Pixel 4 / 4 XL are supported; recovery reports $PRIMARY.";; esac
+    FOUND_DEVICE=''
     for PROP in ro.product.device ro.build.product ro.product.vendor.device ro.product.system.device ro.product.product.device ro.product.odm.device; do
         DEVICE=$(getprop "$PROP")
         case "$DEVICE" in
-            flame) die 'Pixel 4 (flame) is not supported by this personal coral backup.';;
-            coral) FOUND_CORAL=1;;
+            coral|flame)
+                [ -z "$FOUND_DEVICE" ] || [ "$FOUND_DEVICE" = "$DEVICE" ] ||
+                    die 'Conflicting coral/flame device properties. No restore will be attempted.'
+                FOUND_DEVICE=$DEVICE;;
         esac
     done
-    [ "$FOUND_CORAL" = 1 ] || die 'Cannot verify Pixel 4 XL (coral).'
+    [ -n "$FOUND_DEVICE" ] || die 'Cannot verify Pixel 4 (flame) or Pixel 4 XL (coral).'
+    case "$TARGET_DEVICE" in
+        floral) ;;
+        coral|flame)
+            [ "$FOUND_DEVICE" = "$TARGET_DEVICE" ] ||
+                die "This personal ZIP targets $TARGET_DEVICE; recovery reports $FOUND_DEVICE.";;
+        *) die 'Unsupported package target.';;
+    esac
 }
 
 require_idle_radio() {
@@ -137,7 +147,7 @@ run_restore() {
     RESTORE_STARTED=0
     [ -n "$LOG" ] && [ -f "$LOG" ] || exit 1
     ui_print '========================================'
-    ui_print ' EFS Restore - Pixel 4 XL (coral)'
+    ui_print ' EFS Restore - Pixel 4 / Pixel 4 XL'
     ui_print ' v@VERSION@ Recovery | Hecker (Maintainer)'
     if [ "$RESTORE_DSDS" = 1 ]; then ui_print 'DSDS configuration enabled in this package.'; fi
     ui_print '========================================'
@@ -146,7 +156,7 @@ run_restore() {
         command -v "$TOOL" >/dev/null 2>&1 || die "Missing recovery tool: $TOOL"
     done
     require_recovery
-    require_coral
+    require_supported_device
     require_idle_radio
     set_progress 0.05
 

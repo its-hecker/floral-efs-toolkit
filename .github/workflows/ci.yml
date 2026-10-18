@@ -76,7 +76,7 @@ jobs:
           VERSION="$(cat VERSION)"
           TAG="v${VERSION}"
           ASSET="public-dist/Floral-EFS-Toolkit-v${VERSION}-source.zip"
-          TEMPLATE="public-dist/Floral-EFS-Restore-coral-v${VERSION}-TEMPLATE.zip"
+          TEMPLATE="public-dist/Floral-EFS-Restore-floral-v${VERSION}-TEMPLATE.zip"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release already exists; refusing to replace it." >&2
             exit 1

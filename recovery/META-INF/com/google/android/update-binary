@@ -16,12 +16,12 @@ bootstrap_error() {
 command -v unzip >/dev/null 2>&1 || bootstrap_error 'Recovery is missing unzip.'
 command -v mktemp >/dev/null 2>&1 || bootstrap_error 'Recovery is missing mktemp.'
 
-WORKDIR=$(mktemp -d /tmp/hecker-efs-coral.XXXXXX) || bootstrap_error 'Cannot create temporary directory.'
+WORKDIR=$(mktemp -d /tmp/hecker-efs-floral.XXXXXX) || bootstrap_error 'Cannot create temporary directory.'
 LOG="$WORKDIR/restore.log"
 : > "$LOG" || bootstrap_error 'Cannot create restore log.'
 export WORKDIR LOG OUTFD
 
-printf 'ui_print Extracting coral EFS restore package...\nui_print\n' >&"$OUTFD"
+printf 'ui_print Extracting floral EFS restore package...\nui_print\n' >&"$OUTFD"
 # Extract only the named payloads; no arbitrary archive paths are executed.
 unzip -o "$ZIPFILE" install/restore.sh install/dsds.sh install/persistent-dsds.awk efs_backup/modemst1 efs_backup/modemst2 efs_backup/fsg efs_backup/fsc -d "$WORKDIR" >> "$LOG" 2>&1 || bootstrap_error "Incomplete payload. Add your four raw backups inside efs_backup/ and check the ZIP. Log: $LOG"
 [ -r "$WORKDIR/install/restore.sh" ] || bootstrap_error 'Installer script is missing.'

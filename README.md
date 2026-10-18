@@ -1,6 +1,6 @@
 # Floral EFS Toolkit
 
-**Personal EFS restore packages for Pixel 4 XL (coral), with optional DSDS configuration.**
+**Personal EFS restore packages for Pixel 4 (flame) and Pixel 4 XL (coral), with optional DSDS configuration.**
 
 Maintained by **Hecker** · [Updates](https://t.me/pixel4seriesupdates) · [Support](https://t.me/Pixel4Roms)
 
@@ -13,8 +13,8 @@ Add your own `modemst1`, `modemst2`, `fsg` and `fsc` backups to the public Orang
 | Item | Status |
 | --- | --- |
 | Pixel 4 XL / `coral` | Supported target; device and partition sizes checked at flash time |
-| Pixel 4 / `flame` | Not supported by this release |
-| EFS restore and automatic DSDS | Maintainer confirmed v1.5.2 works after the two-flash fix; v1.5.3 publishes that logic with a user-filled template |
+| Pixel 4 / `flame` | Supported by the shared public template; device and partition sizes checked at flash time |
+| EFS restore and automatic DSDS | Maintainer confirmed v1.5.2 works after the two-flash fix; v1.5.4 enables both supported models in the shared public template |
 | Magisk / KernelSU | Not required by the recovery ZIP |
 | Factory-reset permanence | Not provided; a later wipe may require restore again |
 
@@ -22,7 +22,7 @@ The device check identifies the model, not the individual phone. File sizes and 
 
 ## Prepare the public ZIP (no Python)
 
-1. Download `Floral-EFS-Restore-coral-v1.5.3-TEMPLATE.zip` from the [release assets](https://github.com/its-hecker/floral-efs-toolkit/releases/latest). Do not choose GitHub's automatic source-code downloads for flashing.
+1. Download `Floral-EFS-Restore-floral-v1.5.4-TEMPLATE.zip` from the [release assets](https://github.com/its-hecker/floral-efs-toolkit/releases/latest). Do not choose GitHub's automatic source-code downloads for flashing.
 2. Open the ZIP in an archive manager. Open its **`efs_backup/`** directory and add the following raw backups from the exact handset you intend to restore:
 
 | Path inside the ZIP | Required bytes |
@@ -55,7 +55,7 @@ On Linux or macOS:
 python3 build.py --backup-dir "$HOME/coral-backups"
 ```
 
-The builder writes `dist/Floral-EFS-Restore-coral-v1.5.3-DSDS-PERSONAL.zip`. It copies backups unchanged, embeds their checksums, verifies the completed archive and refuses to overwrite an existing output. The backups are already included in this output; do not replace them manually afterward.
+The builder defaults to coral and writes `dist/Floral-EFS-Restore-coral-v1.5.4-DSDS-PERSONAL.zip`. For Pixel 4, add `--device flame`; the resulting personal ZIP checks for flame. Personal ZIPs require their selected model to match. Backups must always come from the exact handset being restored. It copies backups unchanged, embeds their checksums, verifies the completed archive and refuses to overwrite an existing output. The backups are already included in this output; do not replace them manually afterward.
 
 For an EFS-only package that leaves DSDS unchanged and does not require readable Data:
 
@@ -81,11 +81,11 @@ The four target partitions are shared between slots. This ZIP does not change th
 
 The captured failed boot reports Android requesting DSDS while the saved modem mode is `ss`. `rmt_storage` detects an SS-to-DSDS change and explicitly clears both modem stores. Later in that same boot the modem saves its mode as DSDS, explaining the observed benefit of restoring again afterward.
 
-v1.5.2 addresses this mismatch by saving both persistent mode properties together and requiring the existing modem initialization marker. **The maintainer tested that build and confirmed it works.** v1.5.3 keeps that restore/DSDS logic and adds the public template. This confirmation concerns the tested coral handset, not every ROM or device. See [diagnostics](docs/DIAGNOSTICS.md) if the symptom recurs.
+v1.5.2 addresses this mismatch by saving both persistent mode properties together and requiring the existing modem initialization marker. **The maintainer tested that build and confirmed it works.** v1.5.4 keeps that restore/DSDS logic and supports flame and coral in the shared public template. The maintainer reports both models supported; compatibility does not establish identical behavior on every ROM or individual handset. See [diagnostics](docs/DIAGNOSTICS.md) if the symptom recurs.
 
 ## Checks and failure handling
 
-- Requires recovery root, coral identity and inactive known modem services.
+- Requires recovery root, a consistent flame or coral identity and inactive known modem services. Other phones and conflicting model properties are rejected.
 - Checks exact source and target sizes, write protection and mount state before restoring. Templates calculate hashes of user-supplied files; locally built personal ZIPs additionally check embedded backup hashes.
 - Saves verified pre-restore copies of all four partitions in recovery RAM.
 - Flushes and hashes each partition after writing; a failed write never produces overall success.
